@@ -1,0 +1,11 @@
+iniciavis
+
+    levis(a);
+    levis(b);
+
+    escrevis(a);
+    escrevis(b);
+
+    a = 1234;
+
+fimis;
