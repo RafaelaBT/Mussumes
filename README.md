@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # MUSSUMES
 
 ## Introdução
@@ -34,3 +35,7 @@ O projeto é composto dos seguintes conteúdos:
 ## Como editar a Gramática
 - Faça edições no arquivo `Mussumes.g4` e execute o comando abaixo:
   java -cp ".;lib/antlr-4.13.2-complete.jar" org.antlr.v4.Tool .\Mussumes.g4 -package parser -o .\src\parser\
+=======
+# Mussumes
+Linguagem de programação fictícia criada para a disciplina de Compiladores na UFABC.
+>>>>>>> 1d2123b0da3dbef649ee81dd54dc692d53147c94
