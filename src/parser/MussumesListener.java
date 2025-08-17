@@ -1,5 +1,12 @@
 // Generated from ./Mussumes.g4 by ANTLR 4.13.2
 package parser;
+
+    import datastructures.Symbol;
+    import datastructures.Variable;
+    import datastructures.SymbolTable;
+    import exceptions.SemanticException;
+    import java.util.ArrayList;
+
 import org.antlr.v4.runtime.tree.ParseTreeListener;
 
 /**
@@ -17,6 +24,36 @@ public interface MussumesListener extends ParseTreeListener {
 	 * @param ctx the parse tree
 	 */
 	void exitProg(MussumesParser.ProgContext ctx);
+	/**
+	 * Enter a parse tree produced by {@link MussumesParser#decl}.
+	 * @param ctx the parse tree
+	 */
+	void enterDecl(MussumesParser.DeclContext ctx);
+	/**
+	 * Exit a parse tree produced by {@link MussumesParser#decl}.
+	 * @param ctx the parse tree
+	 */
+	void exitDecl(MussumesParser.DeclContext ctx);
+	/**
+	 * Enter a parse tree produced by {@link MussumesParser#declaravar}.
+	 * @param ctx the parse tree
+	 */
+	void enterDeclaravar(MussumesParser.DeclaravarContext ctx);
+	/**
+	 * Exit a parse tree produced by {@link MussumesParser#declaravar}.
+	 * @param ctx the parse tree
+	 */
+	void exitDeclaravar(MussumesParser.DeclaravarContext ctx);
+	/**
+	 * Enter a parse tree produced by {@link MussumesParser#tipo}.
+	 * @param ctx the parse tree
+	 */
+	void enterTipo(MussumesParser.TipoContext ctx);
+	/**
+	 * Exit a parse tree produced by {@link MussumesParser#tipo}.
+	 * @param ctx the parse tree
+	 */
+	void exitTipo(MussumesParser.TipoContext ctx);
 	/**
 	 * Enter a parse tree produced by {@link MussumesParser#bloco}.
 	 * @param ctx the parse tree

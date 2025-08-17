@@ -3,6 +3,7 @@
 ## Introdução
 
 A Mussumes é a linguagem de programação baseada nas falas do ilustre personagem Mussum, interpretado por Antônio Carlos Bernardes Gomes, grande humorista, ator, músico e compositor brasileiro.
+Baseado no mussumipsum.com de Diego Esteves, o melhor lorem ipsum do mundis!
 
 ## Estrutura do Projeto
 

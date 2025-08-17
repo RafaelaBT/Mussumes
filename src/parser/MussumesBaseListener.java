@@ -1,6 +1,13 @@
 // Generated from ./Mussumes.g4 by ANTLR 4.13.2
 package parser;
 
+    import datastructures.Symbol;
+    import datastructures.Variable;
+    import datastructures.SymbolTable;
+    import exceptions.SemanticException;
+    import java.util.ArrayList;
+
+
 import org.antlr.v4.runtime.ParserRuleContext;
 import org.antlr.v4.runtime.tree.ErrorNode;
 import org.antlr.v4.runtime.tree.TerminalNode;
@@ -24,6 +31,42 @@ public class MussumesBaseListener implements MussumesListener {
 	 * <p>The default implementation does nothing.</p>
 	 */
 	@Override public void exitProg(MussumesParser.ProgContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
+	@Override public void enterDecl(MussumesParser.DeclContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
+	@Override public void exitDecl(MussumesParser.DeclContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
+	@Override public void enterDeclaravar(MussumesParser.DeclaravarContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
+	@Override public void exitDeclaravar(MussumesParser.DeclaravarContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
+	@Override public void enterTipo(MussumesParser.TipoContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
+	@Override public void exitTipo(MussumesParser.TipoContext ctx) { }
 	/**
 	 * {@inheritDoc}
 	 *
