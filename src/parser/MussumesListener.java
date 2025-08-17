@@ -105,6 +105,26 @@ public interface MussumesListener extends ParseTreeListener {
 	 */
 	void exitCmdattrib(MussumesParser.CmdattribContext ctx);
 	/**
+	 * Enter a parse tree produced by {@link MussumesParser#cmdselecao}.
+	 * @param ctx the parse tree
+	 */
+	void enterCmdselecao(MussumesParser.CmdselecaoContext ctx);
+	/**
+	 * Exit a parse tree produced by {@link MussumesParser#cmdselecao}.
+	 * @param ctx the parse tree
+	 */
+	void exitCmdselecao(MussumesParser.CmdselecaoContext ctx);
+	/**
+	 * Enter a parse tree produced by {@link MussumesParser#expr_or_bool}.
+	 * @param ctx the parse tree
+	 */
+	void enterExpr_or_bool(MussumesParser.Expr_or_boolContext ctx);
+	/**
+	 * Exit a parse tree produced by {@link MussumesParser#expr_or_bool}.
+	 * @param ctx the parse tree
+	 */
+	void exitExpr_or_bool(MussumesParser.Expr_or_boolContext ctx);
+	/**
 	 * Enter a parse tree produced by {@link MussumesParser#expr}.
 	 * @param ctx the parse tree
 	 */
@@ -124,4 +144,54 @@ public interface MussumesListener extends ParseTreeListener {
 	 * @param ctx the parse tree
 	 */
 	void exitTermo(MussumesParser.TermoContext ctx);
+	/**
+	 * Enter a parse tree produced by {@link MussumesParser#fator}.
+	 * @param ctx the parse tree
+	 */
+	void enterFator(MussumesParser.FatorContext ctx);
+	/**
+	 * Exit a parse tree produced by {@link MussumesParser#fator}.
+	 * @param ctx the parse tree
+	 */
+	void exitFator(MussumesParser.FatorContext ctx);
+	/**
+	 * Enter a parse tree produced by {@link MussumesParser#boolexpr}.
+	 * @param ctx the parse tree
+	 */
+	void enterBoolexpr(MussumesParser.BoolexprContext ctx);
+	/**
+	 * Exit a parse tree produced by {@link MussumesParser#boolexpr}.
+	 * @param ctx the parse tree
+	 */
+	void exitBoolexpr(MussumesParser.BoolexprContext ctx);
+	/**
+	 * Enter a parse tree produced by {@link MussumesParser#booltermo}.
+	 * @param ctx the parse tree
+	 */
+	void enterBooltermo(MussumesParser.BooltermoContext ctx);
+	/**
+	 * Exit a parse tree produced by {@link MussumesParser#booltermo}.
+	 * @param ctx the parse tree
+	 */
+	void exitBooltermo(MussumesParser.BooltermoContext ctx);
+	/**
+	 * Enter a parse tree produced by {@link MussumesParser#boolfator}.
+	 * @param ctx the parse tree
+	 */
+	void enterBoolfator(MussumesParser.BoolfatorContext ctx);
+	/**
+	 * Exit a parse tree produced by {@link MussumesParser#boolfator}.
+	 * @param ctx the parse tree
+	 */
+	void exitBoolfator(MussumesParser.BoolfatorContext ctx);
+	/**
+	 * Enter a parse tree produced by {@link MussumesParser#comparison}.
+	 * @param ctx the parse tree
+	 */
+	void enterComparison(MussumesParser.ComparisonContext ctx);
+	/**
+	 * Exit a parse tree produced by {@link MussumesParser#comparison}.
+	 * @param ctx the parse tree
+	 */
+	void exitComparison(MussumesParser.ComparisonContext ctx);
 }

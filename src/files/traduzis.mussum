@@ -1,14 +1,53 @@
 iniciavis
+    // Declaração de variáveis de todos os tipos
+    interis idade, ano;
+    floatis altura, peso;
+    letris nome, saudacao;
+    verdadis aprovado, maioridade;
 
-    numeris a, b;
-    letris t1;
+    // Leitura de variáveis
+    levis(idade);
+    levis(altura);
+    levis(nome);
+    levis(aprovado);
 
-    levis(a);
-    levis(b);
+    // Atribuição com expressão aritmética
+    ano = idade + 10;
+    peso = altura * 2.5;
 
-    a = 1 + 2 * 3 / x;
+    // Atribuição de texto
+    saudacao = "Olá, ";
 
-    escrevis(a);
-    escrevis(b);
+    // Atribuição de booleanos
+    aprovado = verdaderis;
+    maioridade = (idade > 18) && aprovado;
 
+    // Seleção com comandos condicionais
+    si (maioridade) entaovis {
+        escrevis("Pode entrar na sessão.");
+    } elsivis (aprovado) entaovis {
+        escrevis("Aprovado, mas menor de idade.");
+    } senaovis {
+        escrevis("Não aprovado.");
+    }
+
+    // Escrita de variáveis e expressões
+    escrevis(saudacao);
+    escrevis(nome);
+    escrevis(" terá ");
+    escrevis(ano);
+    escrevis(" anos em 10 anos.");
+    escrevis(" Altura vezes 2.5: ");
+    escrevis(peso);
+    escrevis(" Aprovado? ");
+    escrevis(aprovado);
+    escrevis(" Maior de idade e aprovado? ");
+    escrevis(maioridade);
+
+    // Expressão com parênteses e mistura de tipos
+    peso = (idade + 2) * 1.1;
+
+    // Escrita de resultado final
+    escrevis("Peso ajustado: ");
+    escrevis(peso);
 fimis;

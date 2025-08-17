@@ -2,8 +2,10 @@ package datastructures;
 
 public class Variable extends Symbol{
     // Tipos de variável
-    public static final int NUMBER = 0;
-    public static final int TEXT   = 1;
+    public static final int INT      = 0;
+    public static final int FLOAT    = 1;
+    public static final int TEXT     = 2;
+    public static final int BOOLEAN  = 3;
 
     // Tipo da variável
     private int type;

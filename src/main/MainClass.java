@@ -50,23 +50,19 @@ public class MainClass {
                 
                 // Inicia o parsing do arquivo
                 parser.prog();
-                System.out.println("__________________________________________________________________________________");
                 System.out.println("Arquivus " + fileName + " processadus com sucessis!");
                 System.out.println("Todo mundo vê os porris que eu tomo, mas ninguém vê os tombis que eu levo!");
                 System.out.println("Mais vale um bebadis conhecidiss, que um alcoolatra anonimis.");
 
             } catch (SemanticException e) {
                 // Exceção para erros semânticos
-                System.out.println("__________________________________________________________________________________");
                 System.err.println("Num tendi nada! Erruvis de semantiquis encontradus: " + e.getMessage());
                 System.out.println("A ordem dos tratores altera o pão duris.");
             } catch (java.io.IOException e) {
                 // Exceção para erros de leitura de arquivo
-                System.out.println("__________________________________________________________________________________");
                 System.err.println("Erruvis ao levis arquivus: " + e.getMessage());
             } catch (Exception e) {
                 // Exceção para outros erros durante o parsing
-                System.out.println("__________________________________________________________________________________");
                 System.err.println("Erruvis ao processadus arquivus: " + e.getMessage());
             }
         }
