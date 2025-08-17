@@ -1,6 +1,6 @@
 iniciavis
     // Declaração de variáveis de todos os tipos
-    interis idade, ano;
+    interis idade, ano, i;
     floatis altura, peso;
     letris nome, saudacao;
     verdadis aprovado, maioridade;
@@ -61,7 +61,7 @@ iniciavis
     fazis {
         escrevis("Executando pelo menos uma vez");
         peso = peso + 0.5;
-    } enquantis (peso + 70);
+    } enquantis (peso < 70)
 
     // Comando de seleção
     si (aprovado && maioridade) entaovis {
@@ -70,6 +70,11 @@ iniciavis
         escrevis("Pode entrar, mas cuidado!");
     } senaovis {
         escrevis("Não pode entrar!");
+    }
+
+    // Comando for
+    foris (i = 0; i = i + 1; i < 5) {
+        escrevis(i);
     }
 
 fimis;

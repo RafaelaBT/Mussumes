@@ -156,6 +156,18 @@ public class MussumesBaseListener implements MussumesListener {
 	 *
 	 * <p>The default implementation does nothing.</p>
 	 */
+	@Override public void enterCmdfor(MussumesParser.CmdforContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
+	@Override public void exitCmdfor(MussumesParser.CmdforContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
 	@Override public void enterExpr_or_bool(MussumesParser.Expr_or_boolContext ctx) { }
 	/**
 	 * {@inheritDoc}

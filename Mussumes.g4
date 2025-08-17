@@ -30,6 +30,8 @@ grammar Mussumes;
         add("verdadis");
         add("verdaderis");
         add("falsis");
+        add("fazis");
+        add("enquantis");
     }};
 
     public void adicionaID(Symbol symbol) {
@@ -99,7 +101,8 @@ cmd         : cmdleitura
             | cmdescrita
             | cmdattrib
             | cmdselecao
-            | cmdrepeticao;
+            | cmdrepeticao
+            | cmdfor;
 cmdleitura  : 'levis' AP ID {Variable var = verificaID(_input.LT(-1).getText()); var.setInitialized(true);} FP SC;
 cmdescrita  : 'escrevis' AP e=expr_or_bool FP SC;
 cmdattrib   : ID {Variable var = verificaID(_input.LT(-1).getText());
@@ -135,7 +138,14 @@ cmdselecao  : 'si' AP cond=expr_or_bool {verificaCond($cond.tipoExpr);} FP 'enta
 cmdrepeticao
     : 'fazis' ACH (cmd)+ FCH 'enquantis' AP cond=boolexpr { verificaCond($cond.tipoExpr);} FP
     | 'enquantis' AP cond=boolexpr { verificaCond($cond.tipoExpr);} FP ACH (cmd)+ FCH;
-
+cmdfor
+    : 'foris' AP 
+        init=cmdattrib
+        step=cmdattrib
+        cond=boolexpr {verificaCond($cond.tipoExpr);}
+      FP
+      ACH (cmd)+ FCH
+      ;
 
 
 /* -----------------------------
