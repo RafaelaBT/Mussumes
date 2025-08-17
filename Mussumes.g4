@@ -63,6 +63,12 @@ grammar Mussumes;
             throw new SemanticException("Valor numéricus inválidis: " + value);
         }
     }
+
+    public void verificaCond(int tipo) {
+        if (tipo != Variable.BOOLEAN) {
+            throw new SemanticException("Expressão de condição deve ser boolean, cumpadis!");
+        }
+    }
 }
 
 
@@ -92,15 +98,15 @@ bloco       : (cmd)+;
 cmd         : cmdleitura
             | cmdescrita
             | cmdattrib
-            | cmdselecao;
-cmdleitura  : 'levis' AP ID {verificaID(_input.LT(-1).getText());} FP SC;
+            | cmdselecao
+            | cmdrepeticao;
+cmdleitura  : 'levis' AP ID {Variable var = verificaID(_input.LT(-1).getText()); var.setInitialized(true);} FP SC;
 cmdescrita  : 'escrevis' AP e=expr_or_bool FP SC;
-cmdattrib   : ID {verificaID(_input.LT(-1).getText());
+cmdattrib   : ID {Variable var = verificaID(_input.LT(-1).getText());
                   _varName = _input.LT(-1).getText();
                  }
               ATTR
               e=expr_or_bool {
-                Variable var = (Variable) symbolTable.get(_varName);
                 if (var.getType() == Variable.INT) {
                     if ($e.tipoExpr != Variable.INT) {
                         throw new SemanticException("Tipus incompatívis pra variavis "+ _varName +", cumpadis!");
@@ -121,10 +127,16 @@ cmdattrib   : ID {verificaID(_input.LT(-1).getText());
                         throw new SemanticException("Tipus incompatívis pra variavis "+ _varName +", cumpadis!");
                     }
                 }
+                var.setInitialized(true);
              } SC;
-cmdselecao : 'si' AP cond=expr_or_bool FP 'entaovis' ACH (cmd)+ FCH
-            ('elsivis' AP cond2=expr_or_bool FP 'entaovis' ACH (cmd)+ FCH)?
+cmdselecao  : 'si' AP cond=expr_or_bool {verificaCond($cond.tipoExpr);} FP 'entaovis' ACH (cmd)+ FCH
+            ('elsivis' AP cond2=expr_or_bool {verificaCond($cond2.tipoExpr);} FP 'entaovis' ACH (cmd)+ FCH)?
             ('senaovis' ACH (cmd)+ FCH)?;
+cmdrepeticao
+    : 'fazis' ACH (cmd)+ FCH 'enquantis' AP cond=boolexpr { verificaCond($cond.tipoExpr);} FP
+    | 'enquantis' AP cond=boolexpr { verificaCond($cond.tipoExpr);} FP ACH (cmd)+ FCH;
+
+
 
 /* -----------------------------
  * Expressões com precedência
@@ -132,8 +144,8 @@ cmdselecao : 'si' AP cond=expr_or_bool FP 'entaovis' ACH (cmd)+ FCH
  */
 
 expr_or_bool returns [int tipoExpr]
-            : e=expr     {$tipoExpr = $e.tipoExpr;}
-            | b=boolexpr {$tipoExpr = $b.tipoExpr;};
+            : b=boolexpr {$tipoExpr = $b.tipoExpr;}
+            | e=expr     {$tipoExpr = $e.tipoExpr;};
 
 expr returns [int tipoExpr]
             : t1 = termo {$tipoExpr = $t1.tipoTermo;}
@@ -151,6 +163,9 @@ termo returns [int tipoTermo]
             
 fator returns [int tipoFator] 
             : ID    { Variable var = verificaID(_input.LT(-1).getText());
+                      if (!var.isInitialized()) {
+                        throw new SemanticException("Variavis " + var.getName() + " não inicializadis, cumpadis!");
+                      }
                       $tipoFator = var.getType(); }
             | INT   { _varValue = _input.LT(-1).getText();
                       verificaNum(_varValue, Variable.INT);
@@ -178,14 +193,25 @@ booltermo returns [int tipoTermo]
 
 boolfator returns [int tipoFator]
             : '!' f=boolfator { $tipoFator = Variable.BOOLEAN; }
-            | comparison
-            | ID { Variable var = verificaID(_input.LT(-1).getText()); $tipoFator = var.getType(); }
+            | c=comparison { $tipoFator = $c.tipoFator;}
+            | ID { Variable var = verificaID(_input.LT(-1).getText());
+                      if (!var.isInitialized()) {
+                        throw new SemanticException("Variavis " + var.getName() + " não inicializadis, cumpadis!");
+                      }
+                      $tipoFator = var.getType(); }
             | TRUE { $tipoFator = Variable.BOOLEAN; }
             | FALSE { $tipoFator = Variable.BOOLEAN; }
             | AP b=boolexpr FP { $tipoFator = $b.tipoExpr; };
 
 comparison returns [int tipoFator]
-    : left=expr op=OPREL right=expr {$tipoFator = Variable.BOOLEAN;};
+    : left=expr op=OPREL right=expr {
+        if (!((($left.tipoExpr == Variable.INT || $left.tipoExpr == Variable.FLOAT) &&
+               ($right.tipoExpr == Variable.INT || $right.tipoExpr == Variable.FLOAT)) ||
+              ($left.tipoExpr == $right.tipoExpr))) {
+            throw new SemanticException("Tipos incompatíveis na comparação, cumpadis!");
+        }
+        $tipoFator = Variable.BOOLEAN;
+      };
 
 /* -----------------------------
  * Regras léxicas

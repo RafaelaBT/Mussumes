@@ -50,4 +50,26 @@ iniciavis
     // Escrita de resultado final
     escrevis("Peso ajustado: ");
     escrevis(peso);
+
+    // Loop while (enquantis)
+    enquantis (idade < 18) {
+        escrevis("Idade ainda menor que 18");
+        idade = idade + 1;
+    }
+
+    // Loop do-while (fazis ... enquanto)
+    fazis {
+        escrevis("Executando pelo menos uma vez");
+        peso = peso + 0.5;
+    } enquantis (peso + 70);
+
+    // Comando de seleção
+    si (aprovado && maioridade) entaovis {
+        escrevis("Pode entrar na festa!");
+    } elsivis (aprovado) entaovis {
+        escrevis("Pode entrar, mas cuidado!");
+    } senaovis {
+        escrevis("Não pode entrar!");
+    }
+
 fimis;

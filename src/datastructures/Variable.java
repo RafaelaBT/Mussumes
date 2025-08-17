@@ -13,6 +13,9 @@ public class Variable extends Symbol{
     // Valor da variável
     private String value;
 
+    // Flag de inicialização
+    private boolean initialized = false;
+
     /**
      * Construtor da classe Variable
      * @param name nome da variável
@@ -23,6 +26,15 @@ public class Variable extends Symbol{
         super(name);
         this.type = type;
         this.value = value;
+        this.initialized = false;
+    }
+
+    public boolean isInitialized() {
+        return initialized;
+    }
+
+    public void setInitialized(boolean initialized) {
+        this.initialized = initialized;
     }
 
     /**

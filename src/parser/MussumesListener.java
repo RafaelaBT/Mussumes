@@ -115,6 +115,16 @@ public interface MussumesListener extends ParseTreeListener {
 	 */
 	void exitCmdselecao(MussumesParser.CmdselecaoContext ctx);
 	/**
+	 * Enter a parse tree produced by {@link MussumesParser#cmdrepeticao}.
+	 * @param ctx the parse tree
+	 */
+	void enterCmdrepeticao(MussumesParser.CmdrepeticaoContext ctx);
+	/**
+	 * Exit a parse tree produced by {@link MussumesParser#cmdrepeticao}.
+	 * @param ctx the parse tree
+	 */
+	void exitCmdrepeticao(MussumesParser.CmdrepeticaoContext ctx);
+	/**
 	 * Enter a parse tree produced by {@link MussumesParser#expr_or_bool}.
 	 * @param ctx the parse tree
 	 */

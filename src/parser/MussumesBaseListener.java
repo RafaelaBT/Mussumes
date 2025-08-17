@@ -144,6 +144,18 @@ public class MussumesBaseListener implements MussumesListener {
 	 *
 	 * <p>The default implementation does nothing.</p>
 	 */
+	@Override public void enterCmdrepeticao(MussumesParser.CmdrepeticaoContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
+	@Override public void exitCmdrepeticao(MussumesParser.CmdrepeticaoContext ctx) { }
+	/**
+	 * {@inheritDoc}
+	 *
+	 * <p>The default implementation does nothing.</p>
+	 */
 	@Override public void enterExpr_or_bool(MussumesParser.Expr_or_boolContext ctx) { }
 	/**
 	 * {@inheritDoc}
