@@ -41,14 +41,14 @@ O projeto é composto dos seguintes conteúdos:
 
 ## Como recompilar o compilador (MacOS/Linux)
 - Execute o comando abaixo:
-  mkdir build
-  javac -cp "./lib/antlr-4.13.2-complete.jar:./src" -d ./build $(find ./src -name "*.java")
+  mkdir bin
+  javac -cp "./lib/antlr-4.13.2-complete.jar:./src" -d ./bin $(find ./src -name "*.java")
 
 ## Como Gerar o código do programa mussum -> Java
 - Execute o comando:
-  java -cp "./lib/antlr-4.13.2-complete.jar:./build" main.MainClass
+  java -cp "./lib/antlr-4.13.2-complete.jar:./bin" main.MainClass
 
 ## Como compilar/rodar o programa gerado
 - Execute os comandos em sequência:
-javac MussumProgram.java
-java MussumProgram
+  javac MussumProgram.java
+  java MussumProgram
