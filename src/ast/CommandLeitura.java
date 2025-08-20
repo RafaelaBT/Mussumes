@@ -1,7 +1,7 @@
 package ast;
 
 public class CommandLeitura extends AbstractCommand {
-    private String id;
+    private final String id;
 
     public CommandLeitura(String id) {
         this.id = id;
@@ -9,6 +9,7 @@ public class CommandLeitura extends AbstractCommand {
 
     @Override
     public String generateJavaCode() {
-        return null;
+        // Usa um Scanner compartilhado chamado _keyb (criado no Program.generateTarget)
+        return id + " = _keyb.nextLine();";
     }
 }

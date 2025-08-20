@@ -27,7 +27,7 @@ O projeto é composto dos seguintes conteúdos:
   Link: https://code.visualstudio.com/docs/java/java-tutorial
 - Instale as extensões Code Runner e Extension Pack for Java no VSCode;
 - Baixe o antlr-4.13.2-complete.jar e insira-o na pasta lib;
-  Link: https://www.antlr.org/dogwnload/antlr-4.13.2-complete.jar
+  Link: https://www.antlr.org/download/antlr-4.13.2-complete.jar
 - Coloque os arquivos a serem interpretados em `files`;
 - Execute o arquivo MainClass.java com o Code Runner.
 

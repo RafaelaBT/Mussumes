@@ -5,7 +5,15 @@ package parser;
     import datastructures.Variable;
     import datastructures.SymbolTable;
     import exceptions.SemanticException;
+    import ast.Program;
+    import ast.AbstractCommand;
     import java.util.ArrayList;
+    import ast.CommandLeitura;
+    import ast.CommandEscrita;
+    import ast.CommandBloco;
+    import ast.CommandDecisao;
+    import ast.CommandEnquanto;
+    import ast.CommandAtribuicao;
 
 import org.antlr.v4.runtime.Lexer;
 import org.antlr.v4.runtime.CharStream;
@@ -106,6 +114,16 @@ public class MussumesLexer extends Lexer {
 	    private String _varValue;
 	    private SymbolTable symbolTable = new SymbolTable();
 	    private Symbol symbol;
+	    private Program program = new Program();
+	    private ArrayList<AbstractCommand> curThread = new ArrayList<AbstractCommand>();
+
+	    private String _readID;
+	    private String _writeID;
+	    private String _exprID;
+	    private String _exprContent;
+	    private String _exprDecision;
+	    private ArrayList<AbstractCommand> listaTrue;
+	    private ArrayList<AbstractCommand> listaFalse;
 
 	    private static final java.util.Set<String> RESERVED_WORDS = new java.util.HashSet<String>() {{
 	        add("iniciavis");
@@ -162,6 +180,16 @@ public class MussumesLexer extends Lexer {
 	        if (tipo != Variable.BOOLEAN) {
 	            throw new SemanticException("Expressão de condição deve ser boolean, cumpadis!");
 	        }
+	    }
+
+	    public void exibeComandos(){
+	        for (AbstractCommand c: program.getCommands()){
+	            System.out.println(c);
+	        }
+	    }
+
+	    public void generateCode(){
+	        program.generateTarget();
 	    }
 
 

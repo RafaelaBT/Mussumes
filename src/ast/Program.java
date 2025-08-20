@@ -8,7 +8,7 @@ public class Program {
     private SymbolTable symbolTable;
 	private ArrayList<AbstractCommand> commands;
 	private String programName;
-
+    
     public void generateTarget() {
     
     }

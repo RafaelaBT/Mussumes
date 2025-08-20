@@ -53,7 +53,7 @@ public class MainClass {
                 System.out.println("Arquivus " + fileName + " processadus com sucessis!");
                 System.out.println("Todo mundo vê os porris que eu tomo, mas ninguém vê os tombis que eu levo!");
                 System.out.println("Mais vale um bebadis conhecidiss, que um alcoolatra anonimis.");
-
+                parser.exibeComandos();
             } catch (SemanticException e) {
                 // Exceção para erros semânticos
                 System.err.println("Num tendi nada! Erruvis de semantiquis encontradus: " + e.getMessage());

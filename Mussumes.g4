@@ -5,7 +5,15 @@ grammar Mussumes;
     import datastructures.Variable;
     import datastructures.SymbolTable;
     import exceptions.SemanticException;
+    import ast.Program;
+    import ast.AbstractCommand;
     import java.util.ArrayList;
+    import ast.CommandLeitura;
+    import ast.CommandEscrita;
+    import ast.CommandBloco;
+    import ast.CommandDecisao;
+    import ast.CommandEnquanto;
+    import ast.CommandAtribuicao;
 }
 
 @members{
@@ -14,6 +22,16 @@ grammar Mussumes;
     private String _varValue;
     private SymbolTable symbolTable = new SymbolTable();
     private Symbol symbol;
+    private Program program = new Program();
+    private ArrayList<AbstractCommand> curThread = new ArrayList<AbstractCommand>();
+
+    private String _readID;
+    private String _writeID;
+    private String _exprID;
+    private String _exprContent;
+    private String _exprDecision;
+    private ArrayList<AbstractCommand> listaTrue;
+    private ArrayList<AbstractCommand> listaFalse;
 
     private static final java.util.Set<String> RESERVED_WORDS = new java.util.HashSet<String>() {{
         add("iniciavis");
@@ -71,6 +89,16 @@ grammar Mussumes;
             throw new SemanticException("Expressão de condição deve ser boolean, cumpadis!");
         }
     }
+
+    public void exibeComandos(){
+        for (AbstractCommand c: program.getCommands()){
+            System.out.println(c);
+        }
+    }
+
+    public void generateCode(){
+        program.generateTarget();
+    }
 }
 
 
@@ -79,7 +107,10 @@ grammar Mussumes;
  * -----------------------------
  */
 
-prog        : 'iniciavis' decl bloco 'fimis' SC;
+prog        : 'iniciavis' decl bloco 'fimis'
+                { program.setCommands(curThread); }
+            ;
+
 
 decl        : (declaravar)*;
 declaravar  : tipo ID {
@@ -103,11 +134,30 @@ cmd         : cmdleitura
             | cmdselecao
             | cmdrepeticao
             | cmdfor;
-cmdleitura  : 'levis' AP ID {Variable var = verificaID(_input.LT(-1).getText()); var.setInitialized(true);} FP SC;
-cmdescrita  : 'escrevis' AP e=expr_or_bool FP SC;
-cmdattrib   : ID {Variable var = verificaID(_input.LT(-1).getText());
-                  _varName = _input.LT(-1).getText();
-                 }
+cmdleitura  : 'levis'
+        AP
+        ID {
+            Variable var = verificaID(_input.LT(-1).getText());
+            _readID = _input.LT(-1).getText();
+            var.setInitialized(true);
+        }
+        FP
+        SC {
+            CommandLeitura cmd = new CommandLeitura(_readID); 
+            curThread.add(cmd);
+        };
+cmdescrita  : 'escrevis' 
+        AP e=expr_or_bool
+        ID {
+            verificaID(_input.LT(-1).getText());
+            _writeID = _input.LT(-1).getText();
+        }
+        FP
+        SC {
+            CommandEscrita cmd = new CommandEscrita(_writeID);
+            curThread.add(cmd);
+        };
+cmdattrib   : ID {Variable var = verificaID(_input.LT(-1).getText());_varName = _input.LT(-1).getText();}
               ATTR
               e=expr_or_bool {
                 if (var.getType() == Variable.INT) {
