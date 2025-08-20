@@ -5,7 +5,18 @@ package parser;
     import datastructures.Variable;
     import datastructures.SymbolTable;
     import exceptions.SemanticException;
+    import ast.Program;
+    import ast.AbstractCommand;
     import java.util.ArrayList;
+    import java.util.Stack;
+    import ast.CommandLeitura;
+    import ast.CommandEscrita;
+    import ast.CommandBloco;
+    import ast.CommandDecisao;
+    import ast.CommandEnquanto;
+    import ast.CommandAtribuicao;
+    import org.antlr.v4.runtime.ParserRuleContext;
+    import org.antlr.v4.runtime.misc.Interval;
 
 import org.antlr.v4.runtime.Lexer;
 import org.antlr.v4.runtime.CharStream;
@@ -52,7 +63,7 @@ public class MussumesLexer extends Lexer {
 		return new String[] {
 			null, "'iniciavis'", "'fimis'", "'interis'", "'floatis'", "'letris'", 
 			"'verdadis'", "'levis'", "'escrevis'", "'si'", "'entaovis'", "'elsivis'", 
-			"'senaovis'", "'fazis'", "'enquantis'", "'foris'", "'+'", "'-'", "'*'", 
+			"'senaovis'", "'enquantis'", "'fazis'", "'foris'", "'+'", "'-'", "'*'", 
 			"'/'", "'||'", "'&&'", "'!'", "','", "'('", "')'", "'{'", "'}'", "';'", 
 			"'='", null, null, null, "'verdaderis'", "'falsis'"
 		};
@@ -99,70 +110,6 @@ public class MussumesLexer extends Lexer {
 	public Vocabulary getVocabulary() {
 		return VOCABULARY;
 	}
-
-
-	    private int _tipo;
-	    private String _varName;
-	    private String _varValue;
-	    private SymbolTable symbolTable = new SymbolTable();
-	    private Symbol symbol;
-
-	    private static final java.util.Set<String> RESERVED_WORDS = new java.util.HashSet<String>() {{
-	        add("iniciavis");
-	        add("fimis");
-	        add("interis");
-	        add("floatis");
-	        add("letris");
-	        add("levis");
-	        add("escrevis");
-	        add("si");
-	        add("entaovis");
-	        add("elsivis");
-	        add("senaovis");
-	        add("verdadis");
-	        add("verdaderis");
-	        add("falsis");
-	        add("fazis");
-	        add("enquantis");
-	    }};
-
-	    public void adicionaID(Symbol symbol) {
-	        String name = symbol.getName();
-	        if (RESERVED_WORDS.contains(name.toLowerCase())) {
-	            throw new SemanticException("Nome reservadis: " + name);
-	        }
-	        if (symbolTable.exists(name)){
-	            throw new SemanticException("Esse "+name+" já existis, cumpadis!");
-	        }
-	        symbolTable.add(symbol);
-	    }
-
-	    public Variable verificaID(String id) {
-	        if(!symbolTable.exists(id)) {
-	            throw new SemanticException("Esse "+id+" num existis, cumpadis!");
-	        }
-	        return (Variable) symbolTable.get(id);
-	    }
-
-	    public void verificaNum(String value, int tipo) {
-	        try {
-	            if (tipo == Variable.INT) {
-	                Integer.parseInt(value);
-	            } else if (tipo == Variable.FLOAT) {
-	                Float.parseFloat(value);
-	            } else {
-	                throw new SemanticException("Tipus inválidis: " + value);
-	            }
-	        } catch (NumberFormatException e) {
-	            throw new SemanticException("Valor numéricus inválidis: " + value);
-	        }
-	    }
-
-	    public void verificaCond(int tipo) {
-	        if (tipo != Variable.BOOLEAN) {
-	            throw new SemanticException("Expressão de condição deve ser boolean, cumpadis!");
-	        }
-	    }
 
 
 	public MussumesLexer(CharStream input) {
@@ -215,8 +162,8 @@ public class MussumesLexer extends Lexer {
 		"\t\u0001\t\u0001\t\u0001\t\u0001\t\u0001\t\u0001\t\u0001\n\u0001\n\u0001"+
 		"\n\u0001\n\u0001\n\u0001\n\u0001\n\u0001\n\u0001\u000b\u0001\u000b\u0001"+
 		"\u000b\u0001\u000b\u0001\u000b\u0001\u000b\u0001\u000b\u0001\u000b\u0001"+
-		"\u000b\u0001\f\u0001\f\u0001\f\u0001\f\u0001\f\u0001\f\u0001\r\u0001\r"+
-		"\u0001\r\u0001\r\u0001\r\u0001\r\u0001\r\u0001\r\u0001\r\u0001\r\u0001"+
+		"\u000b\u0001\f\u0001\f\u0001\f\u0001\f\u0001\f\u0001\f\u0001\f\u0001\f"+
+		"\u0001\f\u0001\f\u0001\r\u0001\r\u0001\r\u0001\r\u0001\r\u0001\r\u0001"+
 		"\u000e\u0001\u000e\u0001\u000e\u0001\u000e\u0001\u000e\u0001\u000e\u0001"+
 		"\u000f\u0001\u000f\u0001\u0010\u0001\u0010\u0001\u0011\u0001\u0011\u0001"+
 		"\u0012\u0001\u0012\u0001\u0013\u0001\u0013\u0001\u0013\u0001\u0014\u0001"+
@@ -261,7 +208,7 @@ public class MussumesLexer extends Lexer {
 		"\u0000\u0000\u0000\r}\u0001\u0000\u0000\u0000\u000f\u0083\u0001\u0000"+
 		"\u0000\u0000\u0011\u008c\u0001\u0000\u0000\u0000\u0013\u008f\u0001\u0000"+
 		"\u0000\u0000\u0015\u0098\u0001\u0000\u0000\u0000\u0017\u00a0\u0001\u0000"+
-		"\u0000\u0000\u0019\u00a9\u0001\u0000\u0000\u0000\u001b\u00af\u0001\u0000"+
+		"\u0000\u0000\u0019\u00a9\u0001\u0000\u0000\u0000\u001b\u00b3\u0001\u0000"+
 		"\u0000\u0000\u001d\u00b9\u0001\u0000\u0000\u0000\u001f\u00bf\u0001\u0000"+
 		"\u0000\u0000!\u00c1\u0001\u0000\u0000\u0000#\u00c3\u0001\u0000\u0000\u0000"+
 		"%\u00c5\u0001\u0000\u0000\u0000\'\u00c7\u0001\u0000\u0000\u0000)\u00ca"+
@@ -306,16 +253,16 @@ public class MussumesLexer extends Lexer {
 		"\u00a1\u00a2\u0005e\u0000\u0000\u00a2\u00a3\u0005n\u0000\u0000\u00a3\u00a4"+
 		"\u0005a\u0000\u0000\u00a4\u00a5\u0005o\u0000\u0000\u00a5\u00a6\u0005v"+
 		"\u0000\u0000\u00a6\u00a7\u0005i\u0000\u0000\u00a7\u00a8\u0005s\u0000\u0000"+
-		"\u00a8\u0018\u0001\u0000\u0000\u0000\u00a9\u00aa\u0005f\u0000\u0000\u00aa"+
-		"\u00ab\u0005a\u0000\u0000\u00ab\u00ac\u0005z\u0000\u0000\u00ac\u00ad\u0005"+
-		"i\u0000\u0000\u00ad\u00ae\u0005s\u0000\u0000\u00ae\u001a\u0001\u0000\u0000"+
-		"\u0000\u00af\u00b0\u0005e\u0000\u0000\u00b0\u00b1\u0005n\u0000\u0000\u00b1"+
-		"\u00b2\u0005q\u0000\u0000\u00b2\u00b3\u0005u\u0000\u0000\u00b3\u00b4\u0005"+
-		"a\u0000\u0000\u00b4\u00b5\u0005n\u0000\u0000\u00b5\u00b6\u0005t\u0000"+
-		"\u0000\u00b6\u00b7\u0005i\u0000\u0000\u00b7\u00b8\u0005s\u0000\u0000\u00b8"+
-		"\u001c\u0001\u0000\u0000\u0000\u00b9\u00ba\u0005f\u0000\u0000\u00ba\u00bb"+
-		"\u0005o\u0000\u0000\u00bb\u00bc\u0005r\u0000\u0000\u00bc\u00bd\u0005i"+
-		"\u0000\u0000\u00bd\u00be\u0005s\u0000\u0000\u00be\u001e\u0001\u0000\u0000"+
+		"\u00a8\u0018\u0001\u0000\u0000\u0000\u00a9\u00aa\u0005e\u0000\u0000\u00aa"+
+		"\u00ab\u0005n\u0000\u0000\u00ab\u00ac\u0005q\u0000\u0000\u00ac\u00ad\u0005"+
+		"u\u0000\u0000\u00ad\u00ae\u0005a\u0000\u0000\u00ae\u00af\u0005n\u0000"+
+		"\u0000\u00af\u00b0\u0005t\u0000\u0000\u00b0\u00b1\u0005i\u0000\u0000\u00b1"+
+		"\u00b2\u0005s\u0000\u0000\u00b2\u001a\u0001\u0000\u0000\u0000\u00b3\u00b4"+
+		"\u0005f\u0000\u0000\u00b4\u00b5\u0005a\u0000\u0000\u00b5\u00b6\u0005z"+
+		"\u0000\u0000\u00b6\u00b7\u0005i\u0000\u0000\u00b7\u00b8\u0005s\u0000\u0000"+
+		"\u00b8\u001c\u0001\u0000\u0000\u0000\u00b9\u00ba\u0005f\u0000\u0000\u00ba"+
+		"\u00bb\u0005o\u0000\u0000\u00bb\u00bc\u0005r\u0000\u0000\u00bc\u00bd\u0005"+
+		"i\u0000\u0000\u00bd\u00be\u0005s\u0000\u0000\u00be\u001e\u0001\u0000\u0000"+
 		"\u0000\u00bf\u00c0\u0005+\u0000\u0000\u00c0 \u0001\u0000\u0000\u0000\u00c1"+
 		"\u00c2\u0005-\u0000\u0000\u00c2\"\u0001\u0000\u0000\u0000\u00c3\u00c4"+
 		"\u0005*\u0000\u0000\u00c4$\u0001\u0000\u0000\u0000\u00c5\u00c6\u0005/"+

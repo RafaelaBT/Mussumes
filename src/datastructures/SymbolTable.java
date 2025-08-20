@@ -15,6 +15,10 @@ public class SymbolTable {
     public SymbolTable() {
         this.map = new HashMap<String, Symbol>();
     }
+    
+    public java.util.Collection<Symbol> allSymbols() {
+        return map.values();
+    }
 
     /**
      * Método para adicionar um símbolo à tabela de símbolos

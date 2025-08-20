@@ -50,9 +50,12 @@ public class MainClass {
                 
                 // Inicia o parsing do arquivo
                 parser.prog();
-                System.out.println("Arquivus " + fileName + " processadus com sucessis!");
+                System.out.println("Arquivus " + fileName + " processadis com sucessis!");
                 System.out.println("Todo mundo vê os porris que eu tomo, mas ninguém vê os tombis que eu levo!");
                 System.out.println("Mais vale um bebadis conhecidiss, que um alcoolatra anonimis.");
+                System.out.println("__________________________________________________________________________________");
+                System.out.println("Arquivus " + fileName + " compiladis com sucessis!");
+                System.out.println("Podis testavis, cumpadi!");
 
             } catch (SemanticException e) {
                 // Exceção para erros semânticos

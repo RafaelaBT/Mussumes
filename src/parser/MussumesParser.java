@@ -5,7 +5,18 @@ package parser;
     import datastructures.Variable;
     import datastructures.SymbolTable;
     import exceptions.SemanticException;
+    import ast.Program;
+    import ast.AbstractCommand;
     import java.util.ArrayList;
+    import java.util.Stack;
+    import ast.CommandLeitura;
+    import ast.CommandEscrita;
+    import ast.CommandBloco;
+    import ast.CommandDecisao;
+    import ast.CommandEnquanto;
+    import ast.CommandAtribuicao;
+    import org.antlr.v4.runtime.ParserRuleContext;
+    import org.antlr.v4.runtime.misc.Interval;
 
 import org.antlr.v4.runtime.atn.*;
 import org.antlr.v4.runtime.dfa.DFA;
@@ -48,7 +59,7 @@ public class MussumesParser extends Parser {
 		return new String[] {
 			null, "'iniciavis'", "'fimis'", "'interis'", "'floatis'", "'letris'", 
 			"'verdadis'", "'levis'", "'escrevis'", "'si'", "'entaovis'", "'elsivis'", 
-			"'senaovis'", "'fazis'", "'enquantis'", "'foris'", "'+'", "'-'", "'*'", 
+			"'senaovis'", "'enquantis'", "'fazis'", "'foris'", "'+'", "'-'", "'*'", 
 			"'/'", "'||'", "'&&'", "'!'", "','", "'('", "')'", "'{'", "'}'", "';'", 
 			"'='", null, null, null, "'verdaderis'", "'falsis'"
 		};
@@ -112,8 +123,25 @@ public class MussumesParser extends Parser {
 	    private int _tipo;
 	    private String _varName;
 	    private String _varValue;
-	    private SymbolTable symbolTable = new SymbolTable();
-	    private Symbol symbol;
+	    private datastructures.SymbolTable symbolTable = new datastructures.SymbolTable();
+	    private datastructures.Symbol symbol;
+	    private ast.Program program = new ast.Program();
+	    private java.util.ArrayList<ast.AbstractCommand> curThread = new java.util.ArrayList<ast.AbstractCommand>();
+
+	    private String _readID;
+	    private String _writeID;
+	    private String _exprID;
+	    private String _exprContent;
+	    private String _exprDecision;
+	    private java.util.ArrayList<ast.AbstractCommand> listaTrue;
+	    private java.util.ArrayList<ast.AbstractCommand> listaFalse;
+
+	    private String _forInitId, _forInitExpr, _forStepId, _forStepExpr;
+
+	    private java.util.Stack<java.util.ArrayList<ast.AbstractCommand>> stack = new java.util.Stack<>();
+
+	    private ast.CommandDecisao _ifRoot;
+	    private ast.CommandDecisao _ifCurrent;
 
 	    private static final java.util.Set<String> RESERVED_WORDS = new java.util.HashSet<String>() {{
 	        add("iniciavis");
@@ -134,42 +162,71 @@ public class MussumesParser extends Parser {
 	        add("enquantis");
 	    }};
 
-	    public void adicionaID(Symbol symbol) {
+	    public void adicionaID(datastructures.Symbol symbol) {
 	        String name = symbol.getName();
 	        if (RESERVED_WORDS.contains(name.toLowerCase())) {
-	            throw new SemanticException("Nome reservadis: " + name);
+	            throw new exceptions.SemanticException("Nome reservadis: " + name);
 	        }
 	        if (symbolTable.exists(name)){
-	            throw new SemanticException("Esse "+name+" já existis, cumpadis!");
+	            throw new exceptions.SemanticException("Esse "+name+" já existis, cumpadis!");
 	        }
 	        symbolTable.add(symbol);
 	    }
 
-	    public Variable verificaID(String id) {
+	    public datastructures.Variable verificaID(String id) {
 	        if(!symbolTable.exists(id)) {
-	            throw new SemanticException("Esse "+id+" num existis, cumpadis!");
+	            throw new exceptions.SemanticException("Esse "+id+" num existis, cumpadis!");
 	        }
-	        return (Variable) symbolTable.get(id);
+	        return (datastructures.Variable) symbolTable.get(id);
 	    }
 
 	    public void verificaNum(String value, int tipo) {
 	        try {
-	            if (tipo == Variable.INT) {
+	            if (tipo == datastructures.Variable.INT) {
 	                Integer.parseInt(value);
-	            } else if (tipo == Variable.FLOAT) {
+	            } else if (tipo == datastructures.Variable.FLOAT) {
 	                Float.parseFloat(value);
 	            } else {
-	                throw new SemanticException("Tipus inválidis: " + value);
+	                throw new exceptions.SemanticException("Tipus inválidis: " + value);
 	            }
 	        } catch (NumberFormatException e) {
-	            throw new SemanticException("Valor numéricus inválidis: " + value);
+	            throw new exceptions.SemanticException("Valor numéricus inválidis: " + value);
 	        }
 	    }
 
 	    public void verificaCond(int tipo) {
-	        if (tipo != Variable.BOOLEAN) {
-	            throw new SemanticException("Expressão de condição deve ser boolean, cumpadis!");
+	        if (tipo != datastructures.Variable.BOOLEAN) {
+	            throw new exceptions.SemanticException("Expressão de condição deve ser boolean, cumpadis!");
 	        }
+	    }
+
+	    public void exibeComandos(){
+	        for (ast.AbstractCommand c: program.getCommands()){
+	            System.out.println(c);
+	        }
+	    }
+
+	    public void generateCode(){
+	        program.generateTarget();
+	    }
+
+	    private String textOf(org.antlr.v4.runtime.ParserRuleContext ctx){
+	        // robusto mesmo com comentários/canais ocultos
+	        return _input.getText(ctx.getSourceInterval());
+	    }
+
+	    private String normalizeExpr(String s){
+	        if (s == null) return null;
+	        // booleans Mussumês -> Java
+	        s = s.replaceAll("\\bverdaderis\\b", "true");
+	        s = s.replaceAll("\\bfalsis\\b", "false");
+	        return s;
+	    }
+
+	    private String addFloatSuffixIfNeeded(String s){
+	        if (s == null) return null;
+	        // simples e suficiente p/ nossa léxica: FLOAT é \d+\.\d+ (sem expoente)
+	        return s.replaceAll("(\\d+\\.\\d+)(?![fF])", "$1f");
 	    }
 
 	public MussumesParser(TokenStream input) {
@@ -185,7 +242,6 @@ public class MussumesParser extends Parser {
 		public BlocoContext bloco() {
 			return getRuleContext(BlocoContext.class,0);
 		}
-		public TerminalNode SC() { return getToken(MussumesParser.SC, 0); }
 		public ProgContext(ParserRuleContext parent, int invokingState) {
 			super(parent, invokingState);
 		}
@@ -197,6 +253,11 @@ public class MussumesParser extends Parser {
 		@Override
 		public void exitRule(ParseTreeListener listener) {
 			if ( listener instanceof MussumesListener ) ((MussumesListener)listener).exitProg(this);
+		}
+		@Override
+		public <T> T accept(ParseTreeVisitor<? extends T> visitor) {
+			if ( visitor instanceof MussumesVisitor ) return ((MussumesVisitor<? extends T>)visitor).visitProg(this);
+			else return visitor.visitChildren(this);
 		}
 	}
 
@@ -214,8 +275,11 @@ public class MussumesParser extends Parser {
 			bloco();
 			setState(43);
 			match(T__1);
-			setState(44);
-			match(SC);
+
+			                    program.setSymbolTable(symbolTable);
+			                    program.setProgramName("MussumProgram");
+			                    program.setCommands(curThread);
+			                
 			}
 		}
 		catch (RecognitionException re) {
@@ -248,6 +312,11 @@ public class MussumesParser extends Parser {
 		@Override
 		public void exitRule(ParseTreeListener listener) {
 			if ( listener instanceof MussumesListener ) ((MussumesListener)listener).exitDecl(this);
+		}
+		@Override
+		public <T> T accept(ParseTreeVisitor<? extends T> visitor) {
+			if ( visitor instanceof MussumesVisitor ) return ((MussumesVisitor<? extends T>)visitor).visitDecl(this);
+			else return visitor.visitChildren(this);
 		}
 	}
 
@@ -310,6 +379,11 @@ public class MussumesParser extends Parser {
 		@Override
 		public void exitRule(ParseTreeListener listener) {
 			if ( listener instanceof MussumesListener ) ((MussumesListener)listener).exitDeclaravar(this);
+		}
+		@Override
+		public <T> T accept(ParseTreeVisitor<? extends T> visitor) {
+			if ( visitor instanceof MussumesVisitor ) return ((MussumesVisitor<? extends T>)visitor).visitDeclaravar(this);
+			else return visitor.visitChildren(this);
 		}
 	}
 
@@ -378,6 +452,11 @@ public class MussumesParser extends Parser {
 		@Override
 		public void exitRule(ParseTreeListener listener) {
 			if ( listener instanceof MussumesListener ) ((MussumesListener)listener).exitTipo(this);
+		}
+		@Override
+		public <T> T accept(ParseTreeVisitor<? extends T> visitor) {
+			if ( visitor instanceof MussumesVisitor ) return ((MussumesVisitor<? extends T>)visitor).visitTipo(this);
+			else return visitor.visitChildren(this);
 		}
 	}
 
@@ -455,6 +534,11 @@ public class MussumesParser extends Parser {
 		public void exitRule(ParseTreeListener listener) {
 			if ( listener instanceof MussumesListener ) ((MussumesListener)listener).exitBloco(this);
 		}
+		@Override
+		public <T> T accept(ParseTreeVisitor<? extends T> visitor) {
+			if ( visitor instanceof MussumesVisitor ) return ((MussumesVisitor<? extends T>)visitor).visitBloco(this);
+			else return visitor.visitChildren(this);
+		}
 	}
 
 	public final BlocoContext bloco() throws RecognitionException {
@@ -522,6 +606,11 @@ public class MussumesParser extends Parser {
 		@Override
 		public void exitRule(ParseTreeListener listener) {
 			if ( listener instanceof MussumesListener ) ((MussumesListener)listener).exitCmd(this);
+		}
+		@Override
+		public <T> T accept(ParseTreeVisitor<? extends T> visitor) {
+			if ( visitor instanceof MussumesVisitor ) return ((MussumesVisitor<? extends T>)visitor).visitCmd(this);
+			else return visitor.visitChildren(this);
 		}
 	}
 
@@ -592,10 +681,11 @@ public class MussumesParser extends Parser {
 
 	@SuppressWarnings("CheckReturnValue")
 	public static class CmdleituraContext extends ParserRuleContext {
+		public Token id;
 		public TerminalNode AP() { return getToken(MussumesParser.AP, 0); }
-		public TerminalNode ID() { return getToken(MussumesParser.ID, 0); }
 		public TerminalNode FP() { return getToken(MussumesParser.FP, 0); }
 		public TerminalNode SC() { return getToken(MussumesParser.SC, 0); }
+		public TerminalNode ID() { return getToken(MussumesParser.ID, 0); }
 		public CmdleituraContext(ParserRuleContext parent, int invokingState) {
 			super(parent, invokingState);
 		}
@@ -607,6 +697,11 @@ public class MussumesParser extends Parser {
 		@Override
 		public void exitRule(ParseTreeListener listener) {
 			if ( listener instanceof MussumesListener ) ((MussumesListener)listener).exitCmdleitura(this);
+		}
+		@Override
+		public <T> T accept(ParseTreeVisitor<? extends T> visitor) {
+			if ( visitor instanceof MussumesVisitor ) return ((MussumesVisitor<? extends T>)visitor).visitCmdleitura(this);
+			else return visitor.visitChildren(this);
 		}
 	}
 
@@ -621,12 +716,19 @@ public class MussumesParser extends Parser {
 			setState(89);
 			match(AP);
 			setState(90);
-			match(ID);
-			Variable var = verificaID(_input.LT(-1).getText()); var.setInitialized(true);
+			((CmdleituraContext)_localctx).id = match(ID);
+
+			                    Variable var = verificaID((((CmdleituraContext)_localctx).id!=null?((CmdleituraContext)_localctx).id.getText():null));
+			                    _readID = (((CmdleituraContext)_localctx).id!=null?((CmdleituraContext)_localctx).id.getText():null);
+			                    var.setInitialized(true);
+			                
 			setState(92);
 			match(FP);
 			setState(93);
 			match(SC);
+
+			                    curThread.add(new CommandLeitura(_readID, verificaID(_readID).getType()));
+			                
 			}
 		}
 		catch (RecognitionException re) {
@@ -661,6 +763,11 @@ public class MussumesParser extends Parser {
 		public void exitRule(ParseTreeListener listener) {
 			if ( listener instanceof MussumesListener ) ((MussumesListener)listener).exitCmdescrita(this);
 		}
+		@Override
+		public <T> T accept(ParseTreeVisitor<? extends T> visitor) {
+			if ( visitor instanceof MussumesVisitor ) return ((MussumesVisitor<? extends T>)visitor).visitCmdescrita(this);
+			else return visitor.visitChildren(this);
+		}
 	}
 
 	public final CmdescritaContext cmdescrita() throws RecognitionException {
@@ -669,16 +776,20 @@ public class MussumesParser extends Parser {
 		try {
 			enterOuterAlt(_localctx, 1);
 			{
-			setState(95);
-			match(T__7);
 			setState(96);
-			match(AP);
+			match(T__7);
 			setState(97);
-			((CmdescritaContext)_localctx).e = expr_or_bool();
+			match(AP);
 			setState(98);
-			match(FP);
+			((CmdescritaContext)_localctx).e = expr_or_bool();
 			setState(99);
+			match(FP);
+			setState(100);
 			match(SC);
+
+			                String exprText = normalizeExpr( textOf(((CmdescritaContext)_localctx).e) );
+			                curThread.add(new CommandEscrita(exprText));
+			                
 			}
 		}
 		catch (RecognitionException re) {
@@ -713,6 +824,11 @@ public class MussumesParser extends Parser {
 		public void exitRule(ParseTreeListener listener) {
 			if ( listener instanceof MussumesListener ) ((MussumesListener)listener).exitCmdattrib(this);
 		}
+		@Override
+		public <T> T accept(ParseTreeVisitor<? extends T> visitor) {
+			if ( visitor instanceof MussumesVisitor ) return ((MussumesVisitor<? extends T>)visitor).visitCmdattrib(this);
+			else return visitor.visitChildren(this);
+		}
 	}
 
 	public final CmdattribContext cmdattrib() throws RecognitionException {
@@ -721,39 +837,40 @@ public class MussumesParser extends Parser {
 		try {
 			enterOuterAlt(_localctx, 1);
 			{
-			setState(101);
-			match(ID);
-			Variable var = verificaID(_input.LT(-1).getText());
-			                  _varName = _input.LT(-1).getText();
-			                 
 			setState(103);
+			match(ID);
+			 Variable var = verificaID(_input.LT(-1).getText()); _varName = _input.LT(-1).getText(); 
+			setState(105);
 			match(ATTR);
-			setState(104);
+			setState(106);
 			((CmdattribContext)_localctx).e = expr_or_bool();
 
 			                if (var.getType() == Variable.INT) {
 			                    if (((CmdattribContext)_localctx).e.tipoExpr != Variable.INT) {
 			                        throw new SemanticException("Tipus incompatívis pra variavis "+ _varName +", cumpadis!");
 			                    }
-			                }
-			                if (var.getType() == Variable.FLOAT) {
+			                } else if (var.getType() == Variable.FLOAT) {
 			                    if (((CmdattribContext)_localctx).e.tipoExpr != Variable.INT && ((CmdattribContext)_localctx).e.tipoExpr != Variable.FLOAT) {
 			                        throw new SemanticException("Tipus incompatívis pra variavis "+ _varName +", cumpadis!");
 			                    }
-			                }
-			                if (var.getType() == Variable.TEXT) {
+			                } else if (var.getType() == Variable.TEXT) {
 			                    if (((CmdattribContext)_localctx).e.tipoExpr != Variable.TEXT) {
 			                        throw new SemanticException("Tipus incompatívis pra variavis "+ _varName +", cumpadis!");
 			                    }
-			                }
-			                if (var.getType() == Variable.BOOLEAN) {
+			                } else if (var.getType() == Variable.BOOLEAN) {
 			                    if (((CmdattribContext)_localctx).e.tipoExpr != Variable.BOOLEAN) {
 			                        throw new SemanticException("Tipus incompatívis pra variavis "+ _varName +", cumpadis!");
 			                    }
 			                }
 			                var.setInitialized(true);
-			             
-			setState(106);
+
+			                String exprText = normalizeExpr( textOf(((CmdattribContext)_localctx).e) );
+			                if (var.getType() == Variable.FLOAT) {
+			                    exprText = addFloatSuffixIfNeeded(exprText);
+			                }
+			                curThread.add(new CommandAtribuicao(_varName, exprText));
+			                
+			setState(108);
 			match(SC);
 			}
 		}
@@ -770,8 +887,8 @@ public class MussumesParser extends Parser {
 
 	@SuppressWarnings("CheckReturnValue")
 	public static class CmdselecaoContext extends ParserRuleContext {
-		public Expr_or_boolContext cond;
-		public Expr_or_boolContext cond2;
+		public BoolexprContext c1;
+		public BoolexprContext cN;
 		public List<TerminalNode> AP() { return getTokens(MussumesParser.AP); }
 		public TerminalNode AP(int i) {
 			return getToken(MussumesParser.AP, i);
@@ -788,11 +905,11 @@ public class MussumesParser extends Parser {
 		public TerminalNode FCH(int i) {
 			return getToken(MussumesParser.FCH, i);
 		}
-		public List<Expr_or_boolContext> expr_or_bool() {
-			return getRuleContexts(Expr_or_boolContext.class);
+		public List<BoolexprContext> boolexpr() {
+			return getRuleContexts(BoolexprContext.class);
 		}
-		public Expr_or_boolContext expr_or_bool(int i) {
-			return getRuleContext(Expr_or_boolContext.class,i);
+		public BoolexprContext boolexpr(int i) {
+			return getRuleContext(BoolexprContext.class,i);
 		}
 		public List<CmdContext> cmd() {
 			return getRuleContexts(CmdContext.class);
@@ -812,6 +929,11 @@ public class MussumesParser extends Parser {
 		public void exitRule(ParseTreeListener listener) {
 			if ( listener instanceof MussumesListener ) ((MussumesListener)listener).exitCmdselecao(this);
 		}
+		@Override
+		public <T> T accept(ParseTreeVisitor<? extends T> visitor) {
+			if ( visitor instanceof MussumesVisitor ) return ((MussumesVisitor<? extends T>)visitor).visitCmdselecao(this);
+			else return visitor.visitChildren(this);
+		}
 	}
 
 	public final CmdselecaoContext cmdselecao() throws RecognitionException {
@@ -821,100 +943,142 @@ public class MussumesParser extends Parser {
 		try {
 			enterOuterAlt(_localctx, 1);
 			{
-			setState(108);
-			match(T__8);
-			setState(109);
-			match(AP);
 			setState(110);
-			((CmdselecaoContext)_localctx).cond = expr_or_bool();
-			verificaCond(((CmdselecaoContext)_localctx).cond.tipoExpr);
+			match(T__8);
+			setState(111);
+			match(AP);
 			setState(112);
-			match(FP);
+			((CmdselecaoContext)_localctx).c1 = boolexpr();
 			setState(113);
-			match(T__9);
+			match(FP);
 			setState(114);
+			match(T__9);
+			setState(115);
 			match(ACH);
-			setState(116); 
+
+			                    verificaCond(((CmdselecaoContext)_localctx).c1.tipoExpr);
+			                    String cond1 = addFloatSuffixIfNeeded( normalizeExpr( textOf(((CmdselecaoContext)_localctx).c1) ) );
+			                    stack.push(curThread);
+			                    curThread = new ArrayList<AbstractCommand>();
+			                
+			setState(118); 
 			_errHandler.sync(this);
 			_la = _input.LA(1);
 			do {
 				{
 				{
-				setState(115);
+				setState(117);
 				cmd();
 				}
 				}
-				setState(118); 
+				setState(120); 
 				_errHandler.sync(this);
 				_la = _input.LA(1);
 			} while ( (((_la) & ~0x3f) == 0 && ((1L << _la) & 34359796608L) != 0) );
-			setState(120);
+			setState(122);
 			match(FCH);
-			setState(135);
+
+			                    ArrayList<AbstractCommand> then1 = curThread;
+			                    curThread = stack.pop();
+
+			                    _ifRoot = new CommandDecisao(cond1);
+			                    for (AbstractCommand c : then1) _ifRoot.addTrueCommand(c);
+			                    _ifCurrent = _ifRoot;
+			                
+			setState(141);
 			_errHandler.sync(this);
 			_la = _input.LA(1);
-			if (_la==T__10) {
+			while (_la==T__10) {
 				{
-				setState(121);
+				{
+				setState(124);
 				match(T__10);
-				setState(122);
-				match(AP);
-				setState(123);
-				((CmdselecaoContext)_localctx).cond2 = expr_or_bool();
-				verificaCond(((CmdselecaoContext)_localctx).cond2.tipoExpr);
 				setState(125);
-				match(FP);
+				match(AP);
 				setState(126);
-				match(T__9);
+				((CmdselecaoContext)_localctx).cN = boolexpr();
 				setState(127);
+				match(FP);
+				setState(128);
+				match(T__9);
+				setState(129);
 				match(ACH);
-				setState(129); 
+
+				                        verificaCond(((CmdselecaoContext)_localctx).cN.tipoExpr);
+				                        String condN = addFloatSuffixIfNeeded( normalizeExpr( textOf(((CmdselecaoContext)_localctx).cN) ) );
+				                        stack.push(curThread);
+				                        curThread = new ArrayList<AbstractCommand>();
+				                        _exprDecision = condN;
+				                    
+				setState(132); 
 				_errHandler.sync(this);
 				_la = _input.LA(1);
 				do {
 					{
 					{
-					setState(128);
+					setState(131);
 					cmd();
 					}
 					}
-					setState(131); 
+					setState(134); 
 					_errHandler.sync(this);
 					_la = _input.LA(1);
 				} while ( (((_la) & ~0x3f) == 0 && ((1L << _la) & 34359796608L) != 0) );
-				setState(133);
+				setState(136);
 				match(FCH);
-				}
-			}
 
-			setState(146);
+				                    ArrayList<AbstractCommand> thenN = curThread;
+				                    curThread = stack.pop();
+
+				                    CommandDecisao next = new CommandDecisao(_exprDecision);
+				                    for (AbstractCommand c: thenN) next.addTrueCommand(c);
+				                    _ifCurrent.addFalseCommand(next);
+				                    _ifCurrent = next;
+				                    
+				}
+				}
+				setState(143);
+				_errHandler.sync(this);
+				_la = _input.LA(1);
+			}
+			setState(155);
 			_errHandler.sync(this);
 			_la = _input.LA(1);
 			if (_la==T__11) {
 				{
-				setState(137);
+				setState(144);
 				match(T__11);
-				setState(138);
+				setState(145);
 				match(ACH);
-				setState(140); 
+				 stack.push(curThread); curThread = new ArrayList<AbstractCommand>(); 
+				setState(148); 
 				_errHandler.sync(this);
 				_la = _input.LA(1);
 				do {
 					{
 					{
-					setState(139);
+					setState(147);
 					cmd();
 					}
 					}
-					setState(142); 
+					setState(150); 
 					_errHandler.sync(this);
 					_la = _input.LA(1);
 				} while ( (((_la) & ~0x3f) == 0 && ((1L << _la) & 34359796608L) != 0) );
-				setState(144);
+				setState(152);
 				match(FCH);
+
+				                    ArrayList<AbstractCommand> elseList = curThread;
+				                    curThread = stack.pop();
+				                    for (AbstractCommand c: elseList) _ifCurrent.addFalseCommand(c);
+				                    
 				}
 			}
 
+
+			                    curThread.add(_ifRoot);
+			                    _ifRoot = null; _ifCurrent = null;
+			                
 			}
 		}
 		catch (RecognitionException re) {
@@ -930,11 +1094,12 @@ public class MussumesParser extends Parser {
 
 	@SuppressWarnings("CheckReturnValue")
 	public static class CmdrepeticaoContext extends ParserRuleContext {
-		public BoolexprContext cond;
-		public TerminalNode ACH() { return getToken(MussumesParser.ACH, 0); }
-		public TerminalNode FCH() { return getToken(MussumesParser.FCH, 0); }
+		public BoolexprContext c;
+		public BoolexprContext c2;
 		public TerminalNode AP() { return getToken(MussumesParser.AP, 0); }
 		public TerminalNode FP() { return getToken(MussumesParser.FP, 0); }
+		public TerminalNode ACH() { return getToken(MussumesParser.ACH, 0); }
+		public TerminalNode FCH() { return getToken(MussumesParser.FCH, 0); }
 		public BoolexprContext boolexpr() {
 			return getRuleContext(BoolexprContext.class,0);
 		}
@@ -956,6 +1121,11 @@ public class MussumesParser extends Parser {
 		public void exitRule(ParseTreeListener listener) {
 			if ( listener instanceof MussumesListener ) ((MussumesListener)listener).exitCmdrepeticao(this);
 		}
+		@Override
+		public <T> T accept(ParseTreeVisitor<? extends T> visitor) {
+			if ( visitor instanceof MussumesVisitor ) return ((MussumesVisitor<? extends T>)visitor).visitCmdrepeticao(this);
+			else return visitor.visitChildren(this);
+		}
 	}
 
 	public final CmdrepeticaoContext cmdrepeticao() throws RecognitionException {
@@ -963,73 +1133,102 @@ public class MussumesParser extends Parser {
 		enterRule(_localctx, 20, RULE_cmdrepeticao);
 		int _la;
 		try {
-			setState(175);
+			setState(188);
 			_errHandler.sync(this);
 			switch (_input.LA(1)) {
 			case T__12:
 				enterOuterAlt(_localctx, 1);
 				{
-				setState(148);
+				setState(159);
 				match(T__12);
-				setState(149);
+				setState(160);
+				match(AP);
+				setState(161);
+				((CmdrepeticaoContext)_localctx).c = boolexpr();
+				setState(162);
+				match(FP);
+				setState(163);
 				match(ACH);
-				setState(151); 
+
+				                    verificaCond(((CmdrepeticaoContext)_localctx).c.tipoExpr);
+				                    String condText = addFloatSuffixIfNeeded( normalizeExpr( textOf(((CmdrepeticaoContext)_localctx).c) ) );
+				                    stack.push(curThread);
+				                    curThread = new ArrayList<AbstractCommand>();
+				                    _exprDecision = condText;
+				                
+				setState(166); 
 				_errHandler.sync(this);
 				_la = _input.LA(1);
 				do {
 					{
 					{
-					setState(150);
+					setState(165);
 					cmd();
 					}
 					}
-					setState(153); 
+					setState(168); 
 					_errHandler.sync(this);
 					_la = _input.LA(1);
 				} while ( (((_la) & ~0x3f) == 0 && ((1L << _la) & 34359796608L) != 0) );
-				setState(155);
+				setState(170);
 				match(FCH);
-				setState(156);
-				match(T__13);
-				setState(157);
-				match(AP);
-				setState(158);
-				((CmdrepeticaoContext)_localctx).cond = boolexpr();
-				 verificaCond(((CmdrepeticaoContext)_localctx).cond.tipoExpr);
-				setState(160);
-				match(FP);
+
+				                    ArrayList<AbstractCommand> corpo = curThread;
+				                    curThread = stack.pop();
+
+				                    CommandEnquanto loop = new CommandEnquanto(_exprDecision);
+				                    for (AbstractCommand c: corpo) loop.addCommand(c);
+				                    curThread.add(loop);
+				                
 				}
 				break;
 			case T__13:
 				enterOuterAlt(_localctx, 2);
 				{
-				setState(162);
+				setState(173);
 				match(T__13);
-				setState(163);
-				match(AP);
-				setState(164);
-				((CmdrepeticaoContext)_localctx).cond = boolexpr();
-				 verificaCond(((CmdrepeticaoContext)_localctx).cond.tipoExpr);
-				setState(166);
-				match(FP);
-				setState(167);
+				setState(174);
 				match(ACH);
-				setState(169); 
+				 stack.push(curThread); curThread = new ArrayList<AbstractCommand>(); 
+				setState(177); 
 				_errHandler.sync(this);
 				_la = _input.LA(1);
 				do {
 					{
 					{
-					setState(168);
+					setState(176);
 					cmd();
 					}
 					}
-					setState(171); 
+					setState(179); 
 					_errHandler.sync(this);
 					_la = _input.LA(1);
 				} while ( (((_la) & ~0x3f) == 0 && ((1L << _la) & 34359796608L) != 0) );
-				setState(173);
+				setState(181);
 				match(FCH);
+				setState(182);
+				match(T__12);
+				setState(183);
+				match(AP);
+				setState(184);
+				((CmdrepeticaoContext)_localctx).c2 = boolexpr();
+				setState(185);
+				match(FP);
+
+				                    verificaCond(((CmdrepeticaoContext)_localctx).c2.tipoExpr);
+				                    String cond2 = addFloatSuffixIfNeeded( normalizeExpr( textOf(((CmdrepeticaoContext)_localctx).c2) ) );
+
+				                    ArrayList<AbstractCommand> corpo = curThread;
+				                    curThread = stack.pop();
+
+				                    // do-while(cond) -> while(true){ corpo; if(!(cond)) break; }
+				                    CommandEnquanto loop = new CommandEnquanto("true");
+				                    for (AbstractCommand c: corpo) loop.addCommand(c);
+				                    CommandDecisao breaker = new CommandDecisao("!("+cond2+")");
+				                    breaker.addTrueCommand(new AbstractCommand(){ public String generateJavaCode(){ return "break;"; }});
+				                    loop.addCommand(breaker);
+				                    curThread.add(loop);
+				                
 				}
 				break;
 			default:
@@ -1049,18 +1248,32 @@ public class MussumesParser extends Parser {
 
 	@SuppressWarnings("CheckReturnValue")
 	public static class CmdforContext extends ParserRuleContext {
-		public CmdattribContext init;
-		public CmdattribContext step;
+		public Token idInit;
+		public Expr_or_boolContext eInit;
+		public Token idStep;
+		public Expr_or_boolContext eStep;
 		public BoolexprContext cond;
 		public TerminalNode AP() { return getToken(MussumesParser.AP, 0); }
+		public List<TerminalNode> ATTR() { return getTokens(MussumesParser.ATTR); }
+		public TerminalNode ATTR(int i) {
+			return getToken(MussumesParser.ATTR, i);
+		}
+		public List<TerminalNode> SC() { return getTokens(MussumesParser.SC); }
+		public TerminalNode SC(int i) {
+			return getToken(MussumesParser.SC, i);
+		}
 		public TerminalNode FP() { return getToken(MussumesParser.FP, 0); }
 		public TerminalNode ACH() { return getToken(MussumesParser.ACH, 0); }
 		public TerminalNode FCH() { return getToken(MussumesParser.FCH, 0); }
-		public List<CmdattribContext> cmdattrib() {
-			return getRuleContexts(CmdattribContext.class);
+		public List<TerminalNode> ID() { return getTokens(MussumesParser.ID); }
+		public TerminalNode ID(int i) {
+			return getToken(MussumesParser.ID, i);
 		}
-		public CmdattribContext cmdattrib(int i) {
-			return getRuleContext(CmdattribContext.class,i);
+		public List<Expr_or_boolContext> expr_or_bool() {
+			return getRuleContexts(Expr_or_boolContext.class);
+		}
+		public Expr_or_boolContext expr_or_bool(int i) {
+			return getRuleContext(Expr_or_boolContext.class,i);
 		}
 		public BoolexprContext boolexpr() {
 			return getRuleContext(BoolexprContext.class,0);
@@ -1083,6 +1296,11 @@ public class MussumesParser extends Parser {
 		public void exitRule(ParseTreeListener listener) {
 			if ( listener instanceof MussumesListener ) ((MussumesListener)listener).exitCmdfor(this);
 		}
+		@Override
+		public <T> T accept(ParseTreeVisitor<? extends T> visitor) {
+			if ( visitor instanceof MussumesVisitor ) return ((MussumesVisitor<? extends T>)visitor).visitCmdfor(this);
+			else return visitor.visitChildren(this);
+		}
 	}
 
 	public final CmdforContext cmdfor() throws RecognitionException {
@@ -1092,37 +1310,108 @@ public class MussumesParser extends Parser {
 		try {
 			enterOuterAlt(_localctx, 1);
 			{
-			setState(177);
+			setState(190);
 			match(T__14);
-			setState(178);
+			setState(191);
 			match(AP);
-			setState(179);
-			((CmdforContext)_localctx).init = cmdattrib();
-			setState(180);
-			((CmdforContext)_localctx).step = cmdattrib();
-			setState(181);
+			setState(192);
+			((CmdforContext)_localctx).idInit = match(ID);
+
+			                    Variable v1 = verificaID((((CmdforContext)_localctx).idInit!=null?((CmdforContext)_localctx).idInit.getText():null));
+			                    String id1 = (((CmdforContext)_localctx).idInit!=null?((CmdforContext)_localctx).idInit.getText():null);
+			                
+			setState(194);
+			match(ATTR);
+			setState(195);
+			((CmdforContext)_localctx).eInit = expr_or_bool();
+			setState(196);
+			match(SC);
+
+			                    if (v1.getType() == Variable.INT && ((CmdforContext)_localctx).eInit.tipoExpr != Variable.INT)
+			                        throw new SemanticException("Tipus incompatívis pra variavis "+ id1 +", cumpadis!");
+			                    if (v1.getType() == Variable.FLOAT && !(((CmdforContext)_localctx).eInit.tipoExpr == Variable.INT || ((CmdforContext)_localctx).eInit.tipoExpr == Variable.FLOAT))
+			                        throw new SemanticException("Tipus incompatívis pra variavis "+ id1 +", cumpadis!");
+			                    if (v1.getType() == Variable.TEXT && ((CmdforContext)_localctx).eInit.tipoExpr != Variable.TEXT)
+			                        throw new SemanticException("Tipus incompatívis pra variavis "+ id1 +", cumpadis!");
+			                    if (v1.getType() == Variable.BOOLEAN && ((CmdforContext)_localctx).eInit.tipoExpr != Variable.BOOLEAN)
+			                        throw new SemanticException("Tipus incompatívis pra variavis "+ id1 +", cumpadis!");
+
+			                    String initExpr = normalizeExpr( textOf(((CmdforContext)_localctx).eInit) );
+			                    if (v1.getType() == Variable.FLOAT) {
+			                        initExpr = addFloatSuffixIfNeeded(initExpr);
+			                    }
+			                    v1.setInitialized(true);
+			                    _forInitId = id1; _forInitExpr = initExpr;
+			                
+			setState(198);
+			((CmdforContext)_localctx).idStep = match(ID);
+
+			                    Variable v2 = verificaID((((CmdforContext)_localctx).idStep!=null?((CmdforContext)_localctx).idStep.getText():null));
+			                    String id2 = (((CmdforContext)_localctx).idStep!=null?((CmdforContext)_localctx).idStep.getText():null);
+			                
+			setState(200);
+			match(ATTR);
+			setState(201);
+			((CmdforContext)_localctx).eStep = expr_or_bool();
+			setState(202);
+			match(SC);
+
+			                    if (v2.getType() == Variable.INT && ((CmdforContext)_localctx).eStep.tipoExpr != Variable.INT)
+			                        throw new SemanticException("Tipus incompatívis pra variavis "+ id2 +", cumpadis!");
+			                    if (v2.getType() == Variable.FLOAT && !(((CmdforContext)_localctx).eStep.tipoExpr == Variable.INT || ((CmdforContext)_localctx).eStep.tipoExpr == Variable.FLOAT))
+			                        throw new SemanticException("Tipus incompatívis pra variavis "+ id2 +", cumpadis!");
+			                    if (v2.getType() == Variable.TEXT && ((CmdforContext)_localctx).eStep.tipoExpr != Variable.TEXT)
+			                        throw new SemanticException("Tipus incompatívis pra variavis "+ id2 +", cumpadis!");
+			                    if (v2.getType() == Variable.BOOLEAN && ((CmdforContext)_localctx).eStep.tipoExpr != Variable.BOOLEAN)
+			                        throw new SemanticException("Tipus incompatívis pra variavis "+ id2 +", cumpadis!");
+
+			                    String stepExpr = normalizeExpr( textOf(((CmdforContext)_localctx).eStep) );
+			                    if (v2.getType() == Variable.FLOAT) {
+			                        stepExpr = addFloatSuffixIfNeeded(stepExpr);
+			                    }
+			                    _forStepId = id2; _forStepExpr = stepExpr;
+			                
+			setState(204);
 			((CmdforContext)_localctx).cond = boolexpr();
-			verificaCond(((CmdforContext)_localctx).cond.tipoExpr);
-			setState(183);
+
+			                    verificaCond(((CmdforContext)_localctx).cond.tipoExpr);
+			                    String condText = addFloatSuffixIfNeeded( normalizeExpr( textOf(((CmdforContext)_localctx).cond) ) );
+			                    _exprDecision = condText;
+			                
+			setState(206);
 			match(FP);
-			setState(184);
+			setState(207);
 			match(ACH);
-			setState(186); 
+			 stack.push(curThread); curThread = new ArrayList<AbstractCommand>(); 
+			setState(210); 
 			_errHandler.sync(this);
 			_la = _input.LA(1);
 			do {
 				{
 				{
-				setState(185);
+				setState(209);
 				cmd();
 				}
 				}
-				setState(188); 
+				setState(212); 
 				_errHandler.sync(this);
 				_la = _input.LA(1);
 			} while ( (((_la) & ~0x3f) == 0 && ((1L << _la) & 34359796608L) != 0) );
-			setState(190);
+			setState(214);
 			match(FCH);
+
+			                    ArrayList<AbstractCommand> corpo = curThread;
+			                    curThread = stack.pop();
+
+			                    // init;
+			                    curThread.add(new CommandAtribuicao(_forInitId, _forInitExpr));
+
+			                    // while(cond){ corpo; step; }
+			                    CommandEnquanto loop = new CommandEnquanto(_exprDecision);
+			                    for (AbstractCommand c: corpo) loop.addCommand(c);
+			                    loop.addCommand(new CommandAtribuicao(_forStepId, _forStepExpr));
+			                    curThread.add(loop);
+			                
 			}
 		}
 		catch (RecognitionException re) {
@@ -1159,19 +1448,24 @@ public class MussumesParser extends Parser {
 		public void exitRule(ParseTreeListener listener) {
 			if ( listener instanceof MussumesListener ) ((MussumesListener)listener).exitExpr_or_bool(this);
 		}
+		@Override
+		public <T> T accept(ParseTreeVisitor<? extends T> visitor) {
+			if ( visitor instanceof MussumesVisitor ) return ((MussumesVisitor<? extends T>)visitor).visitExpr_or_bool(this);
+			else return visitor.visitChildren(this);
+		}
 	}
 
 	public final Expr_or_boolContext expr_or_bool() throws RecognitionException {
 		Expr_or_boolContext _localctx = new Expr_or_boolContext(_ctx, getState());
 		enterRule(_localctx, 24, RULE_expr_or_bool);
 		try {
-			setState(198);
+			setState(223);
 			_errHandler.sync(this);
 			switch ( getInterpreter().adaptivePredict(_input,14,_ctx) ) {
 			case 1:
 				enterOuterAlt(_localctx, 1);
 				{
-				setState(192);
+				setState(217);
 				((Expr_or_boolContext)_localctx).b = boolexpr();
 				((Expr_or_boolContext)_localctx).tipoExpr =  ((Expr_or_boolContext)_localctx).b.tipoExpr;
 				}
@@ -1179,7 +1473,7 @@ public class MussumesParser extends Parser {
 			case 2:
 				enterOuterAlt(_localctx, 2);
 				{
-				setState(195);
+				setState(220);
 				((Expr_or_boolContext)_localctx).e = expr();
 				((Expr_or_boolContext)_localctx).tipoExpr =  ((Expr_or_boolContext)_localctx).e.tipoExpr;
 				}
@@ -1220,6 +1514,11 @@ public class MussumesParser extends Parser {
 		public void exitRule(ParseTreeListener listener) {
 			if ( listener instanceof MussumesListener ) ((MussumesListener)listener).exitExpr(this);
 		}
+		@Override
+		public <T> T accept(ParseTreeVisitor<? extends T> visitor) {
+			if ( visitor instanceof MussumesVisitor ) return ((MussumesVisitor<? extends T>)visitor).visitExpr(this);
+			else return visitor.visitChildren(this);
+		}
 	}
 
 	public final ExprContext expr() throws RecognitionException {
@@ -1229,16 +1528,16 @@ public class MussumesParser extends Parser {
 		try {
 			enterOuterAlt(_localctx, 1);
 			{
-			setState(200);
+			setState(225);
 			((ExprContext)_localctx).t1 = termo();
 			((ExprContext)_localctx).tipoExpr =  ((ExprContext)_localctx).t1.tipoTermo;
-			setState(208);
+			setState(233);
 			_errHandler.sync(this);
 			_la = _input.LA(1);
 			while (_la==T__15 || _la==T__16) {
 				{
 				{
-				setState(202);
+				setState(227);
 				_la = _input.LA(1);
 				if ( !(_la==T__15 || _la==T__16) ) {
 				_errHandler.recoverInline(this);
@@ -1248,7 +1547,7 @@ public class MussumesParser extends Parser {
 					_errHandler.reportMatch(this);
 					consume();
 				}
-				setState(203);
+				setState(228);
 				((ExprContext)_localctx).t2 = termo();
 
 				                if (_localctx.tipoExpr == Variable.FLOAT || ((ExprContext)_localctx).t2.tipoTermo == Variable.FLOAT)
@@ -1256,7 +1555,7 @@ public class MussumesParser extends Parser {
 				            
 				}
 				}
-				setState(210);
+				setState(235);
 				_errHandler.sync(this);
 				_la = _input.LA(1);
 			}
@@ -1296,6 +1595,11 @@ public class MussumesParser extends Parser {
 		public void exitRule(ParseTreeListener listener) {
 			if ( listener instanceof MussumesListener ) ((MussumesListener)listener).exitTermo(this);
 		}
+		@Override
+		public <T> T accept(ParseTreeVisitor<? extends T> visitor) {
+			if ( visitor instanceof MussumesVisitor ) return ((MussumesVisitor<? extends T>)visitor).visitTermo(this);
+			else return visitor.visitChildren(this);
+		}
 	}
 
 	public final TermoContext termo() throws RecognitionException {
@@ -1305,16 +1609,16 @@ public class MussumesParser extends Parser {
 		try {
 			enterOuterAlt(_localctx, 1);
 			{
-			setState(211);
+			setState(236);
 			((TermoContext)_localctx).f1 = fator();
 			((TermoContext)_localctx).tipoTermo =  ((TermoContext)_localctx).f1.tipoFator;
-			setState(219);
+			setState(244);
 			_errHandler.sync(this);
 			_la = _input.LA(1);
 			while (_la==T__17 || _la==T__18) {
 				{
 				{
-				setState(213);
+				setState(238);
 				_la = _input.LA(1);
 				if ( !(_la==T__17 || _la==T__18) ) {
 				_errHandler.recoverInline(this);
@@ -1324,7 +1628,7 @@ public class MussumesParser extends Parser {
 					_errHandler.reportMatch(this);
 					consume();
 				}
-				setState(214);
+				setState(239);
 				((TermoContext)_localctx).f2 = fator();
 
 				                if (_localctx.tipoTermo == Variable.FLOAT || ((TermoContext)_localctx).f2.tipoFator == Variable.FLOAT)
@@ -1332,7 +1636,7 @@ public class MussumesParser extends Parser {
 				              
 				}
 				}
-				setState(221);
+				setState(246);
 				_errHandler.sync(this);
 				_la = _input.LA(1);
 			}
@@ -1376,19 +1680,24 @@ public class MussumesParser extends Parser {
 		public void exitRule(ParseTreeListener listener) {
 			if ( listener instanceof MussumesListener ) ((MussumesListener)listener).exitFator(this);
 		}
+		@Override
+		public <T> T accept(ParseTreeVisitor<? extends T> visitor) {
+			if ( visitor instanceof MussumesVisitor ) return ((MussumesVisitor<? extends T>)visitor).visitFator(this);
+			else return visitor.visitChildren(this);
+		}
 	}
 
 	public final FatorContext fator() throws RecognitionException {
 		FatorContext _localctx = new FatorContext(_ctx, getState());
 		enterRule(_localctx, 30, RULE_fator);
 		try {
-			setState(239);
+			setState(264);
 			_errHandler.sync(this);
 			switch (_input.LA(1)) {
 			case ID:
 				enterOuterAlt(_localctx, 1);
 				{
-				setState(222);
+				setState(247);
 				match(ID);
 				 Variable var = verificaID(_input.LT(-1).getText());
 				                      if (!var.isInitialized()) {
@@ -1400,7 +1709,7 @@ public class MussumesParser extends Parser {
 			case INT:
 				enterOuterAlt(_localctx, 2);
 				{
-				setState(224);
+				setState(249);
 				match(INT);
 				 _varValue = _input.LT(-1).getText();
 				                      verificaNum(_varValue, Variable.INT);
@@ -1410,7 +1719,7 @@ public class MussumesParser extends Parser {
 			case FLOAT:
 				enterOuterAlt(_localctx, 3);
 				{
-				setState(226);
+				setState(251);
 				match(FLOAT);
 				 _varValue = _input.LT(-1).getText();
 				                      verificaNum(_varValue, Variable.FLOAT);
@@ -1420,7 +1729,7 @@ public class MussumesParser extends Parser {
 			case STRING:
 				enterOuterAlt(_localctx, 4);
 				{
-				setState(228);
+				setState(253);
 				match(STRING);
 				 ((FatorContext)_localctx).tipoFator =  Variable.TEXT; 
 				}
@@ -1428,7 +1737,7 @@ public class MussumesParser extends Parser {
 			case TRUE:
 				enterOuterAlt(_localctx, 5);
 				{
-				setState(230);
+				setState(255);
 				match(TRUE);
 				 ((FatorContext)_localctx).tipoFator =  Variable.BOOLEAN; 
 				}
@@ -1436,7 +1745,7 @@ public class MussumesParser extends Parser {
 			case FALSE:
 				enterOuterAlt(_localctx, 6);
 				{
-				setState(232);
+				setState(257);
 				match(FALSE);
 				 ((FatorContext)_localctx).tipoFator =  Variable.BOOLEAN; 
 				}
@@ -1444,11 +1753,11 @@ public class MussumesParser extends Parser {
 			case AP:
 				enterOuterAlt(_localctx, 7);
 				{
-				setState(234);
+				setState(259);
 				match(AP);
-				setState(235);
+				setState(260);
 				((FatorContext)_localctx).e = expr_or_bool();
-				setState(236);
+				setState(261);
 				match(FP);
 				 ((FatorContext)_localctx).tipoFator =  ((FatorContext)_localctx).e.tipoExpr; 
 				}
@@ -1491,6 +1800,11 @@ public class MussumesParser extends Parser {
 		public void exitRule(ParseTreeListener listener) {
 			if ( listener instanceof MussumesListener ) ((MussumesListener)listener).exitBoolexpr(this);
 		}
+		@Override
+		public <T> T accept(ParseTreeVisitor<? extends T> visitor) {
+			if ( visitor instanceof MussumesVisitor ) return ((MussumesVisitor<? extends T>)visitor).visitBoolexpr(this);
+			else return visitor.visitChildren(this);
+		}
 	}
 
 	public final BoolexprContext boolexpr() throws RecognitionException {
@@ -1500,23 +1814,23 @@ public class MussumesParser extends Parser {
 		try {
 			enterOuterAlt(_localctx, 1);
 			{
-			setState(241);
+			setState(266);
 			((BoolexprContext)_localctx).b1 = booltermo();
 			 ((BoolexprContext)_localctx).tipoExpr =  ((BoolexprContext)_localctx).b1.tipoTermo; 
-			setState(249);
+			setState(274);
 			_errHandler.sync(this);
 			_la = _input.LA(1);
 			while (_la==T__19) {
 				{
 				{
-				setState(243);
+				setState(268);
 				match(T__19);
-				setState(244);
+				setState(269);
 				((BoolexprContext)_localctx).b2 = booltermo();
 				 ((BoolexprContext)_localctx).tipoExpr =  Variable.BOOLEAN; 
 				}
 				}
-				setState(251);
+				setState(276);
 				_errHandler.sync(this);
 				_la = _input.LA(1);
 			}
@@ -1556,6 +1870,11 @@ public class MussumesParser extends Parser {
 		public void exitRule(ParseTreeListener listener) {
 			if ( listener instanceof MussumesListener ) ((MussumesListener)listener).exitBooltermo(this);
 		}
+		@Override
+		public <T> T accept(ParseTreeVisitor<? extends T> visitor) {
+			if ( visitor instanceof MussumesVisitor ) return ((MussumesVisitor<? extends T>)visitor).visitBooltermo(this);
+			else return visitor.visitChildren(this);
+		}
 	}
 
 	public final BooltermoContext booltermo() throws RecognitionException {
@@ -1565,23 +1884,23 @@ public class MussumesParser extends Parser {
 		try {
 			enterOuterAlt(_localctx, 1);
 			{
-			setState(252);
+			setState(277);
 			((BooltermoContext)_localctx).f1 = boolfator();
 			 ((BooltermoContext)_localctx).tipoTermo =  ((BooltermoContext)_localctx).f1.tipoFator; 
-			setState(260);
+			setState(285);
 			_errHandler.sync(this);
 			_la = _input.LA(1);
 			while (_la==T__20) {
 				{
 				{
-				setState(254);
+				setState(279);
 				match(T__20);
-				setState(255);
+				setState(280);
 				((BooltermoContext)_localctx).f2 = boolfator();
 				 ((BooltermoContext)_localctx).tipoTermo =  Variable.BOOLEAN; 
 				}
 				}
-				setState(262);
+				setState(287);
 				_errHandler.sync(this);
 				_la = _input.LA(1);
 			}
@@ -1630,21 +1949,26 @@ public class MussumesParser extends Parser {
 		public void exitRule(ParseTreeListener listener) {
 			if ( listener instanceof MussumesListener ) ((MussumesListener)listener).exitBoolfator(this);
 		}
+		@Override
+		public <T> T accept(ParseTreeVisitor<? extends T> visitor) {
+			if ( visitor instanceof MussumesVisitor ) return ((MussumesVisitor<? extends T>)visitor).visitBoolfator(this);
+			else return visitor.visitChildren(this);
+		}
 	}
 
 	public final BoolfatorContext boolfator() throws RecognitionException {
 		BoolfatorContext _localctx = new BoolfatorContext(_ctx, getState());
 		enterRule(_localctx, 36, RULE_boolfator);
 		try {
-			setState(281);
+			setState(306);
 			_errHandler.sync(this);
 			switch ( getInterpreter().adaptivePredict(_input,20,_ctx) ) {
 			case 1:
 				enterOuterAlt(_localctx, 1);
 				{
-				setState(263);
+				setState(288);
 				match(T__21);
-				setState(264);
+				setState(289);
 				((BoolfatorContext)_localctx).f = boolfator();
 				 ((BoolfatorContext)_localctx).tipoFator =  Variable.BOOLEAN; 
 				}
@@ -1652,7 +1976,7 @@ public class MussumesParser extends Parser {
 			case 2:
 				enterOuterAlt(_localctx, 2);
 				{
-				setState(267);
+				setState(292);
 				((BoolfatorContext)_localctx).c = comparison();
 				 ((BoolfatorContext)_localctx).tipoFator =  ((BoolfatorContext)_localctx).c.tipoFator;
 				}
@@ -1660,7 +1984,7 @@ public class MussumesParser extends Parser {
 			case 3:
 				enterOuterAlt(_localctx, 3);
 				{
-				setState(270);
+				setState(295);
 				match(ID);
 				 Variable var = verificaID(_input.LT(-1).getText());
 				                      if (!var.isInitialized()) {
@@ -1672,7 +1996,7 @@ public class MussumesParser extends Parser {
 			case 4:
 				enterOuterAlt(_localctx, 4);
 				{
-				setState(272);
+				setState(297);
 				match(TRUE);
 				 ((BoolfatorContext)_localctx).tipoFator =  Variable.BOOLEAN; 
 				}
@@ -1680,7 +2004,7 @@ public class MussumesParser extends Parser {
 			case 5:
 				enterOuterAlt(_localctx, 5);
 				{
-				setState(274);
+				setState(299);
 				match(FALSE);
 				 ((BoolfatorContext)_localctx).tipoFator =  Variable.BOOLEAN; 
 				}
@@ -1688,11 +2012,11 @@ public class MussumesParser extends Parser {
 			case 6:
 				enterOuterAlt(_localctx, 6);
 				{
-				setState(276);
+				setState(301);
 				match(AP);
-				setState(277);
+				setState(302);
 				((BoolfatorContext)_localctx).b = boolexpr();
-				setState(278);
+				setState(303);
 				match(FP);
 				 ((BoolfatorContext)_localctx).tipoFator =  ((BoolfatorContext)_localctx).b.tipoExpr; 
 				}
@@ -1735,6 +2059,11 @@ public class MussumesParser extends Parser {
 		public void exitRule(ParseTreeListener listener) {
 			if ( listener instanceof MussumesListener ) ((MussumesListener)listener).exitComparison(this);
 		}
+		@Override
+		public <T> T accept(ParseTreeVisitor<? extends T> visitor) {
+			if ( visitor instanceof MussumesVisitor ) return ((MussumesVisitor<? extends T>)visitor).visitComparison(this);
+			else return visitor.visitChildren(this);
+		}
 	}
 
 	public final ComparisonContext comparison() throws RecognitionException {
@@ -1743,11 +2072,11 @@ public class MussumesParser extends Parser {
 		try {
 			enterOuterAlt(_localctx, 1);
 			{
-			setState(283);
+			setState(308);
 			((ComparisonContext)_localctx).left = expr();
-			setState(284);
+			setState(309);
 			((ComparisonContext)_localctx).op = match(OPREL);
-			setState(285);
+			setState(310);
 			((ComparisonContext)_localctx).right = expr();
 
 			        if (!(((((ComparisonContext)_localctx).left.tipoExpr == Variable.INT || ((ComparisonContext)_localctx).left.tipoExpr == Variable.FLOAT) &&
@@ -1771,7 +2100,7 @@ public class MussumesParser extends Parser {
 	}
 
 	public static final String _serializedATN =
-		"\u0004\u0001&\u0121\u0002\u0000\u0007\u0000\u0002\u0001\u0007\u0001\u0002"+
+		"\u0004\u0001&\u013a\u0002\u0000\u0007\u0000\u0002\u0001\u0007\u0001\u0002"+
 		"\u0002\u0007\u0002\u0002\u0003\u0007\u0003\u0002\u0004\u0007\u0004\u0002"+
 		"\u0005\u0007\u0005\u0002\u0006\u0007\u0006\u0002\u0007\u0007\u0007\u0002"+
 		"\b\u0007\b\u0002\t\u0007\t\u0002\n\u0007\n\u0002\u000b\u0007\u000b\u0002"+
@@ -1786,174 +2115,191 @@ public class MussumesParser extends Parser {
 		"\u0004\u0004M\b\u0004\u000b\u0004\f\u0004N\u0001\u0005\u0001\u0005\u0001"+
 		"\u0005\u0001\u0005\u0001\u0005\u0001\u0005\u0003\u0005W\b\u0005\u0001"+
 		"\u0006\u0001\u0006\u0001\u0006\u0001\u0006\u0001\u0006\u0001\u0006\u0001"+
-		"\u0006\u0001\u0007\u0001\u0007\u0001\u0007\u0001\u0007\u0001\u0007\u0001"+
-		"\u0007\u0001\b\u0001\b\u0001\b\u0001\b\u0001\b\u0001\b\u0001\b\u0001\t"+
-		"\u0001\t\u0001\t\u0001\t\u0001\t\u0001\t\u0001\t\u0001\t\u0004\tu\b\t"+
-		"\u000b\t\f\tv\u0001\t\u0001\t\u0001\t\u0001\t\u0001\t\u0001\t\u0001\t"+
-		"\u0001\t\u0001\t\u0004\t\u0082\b\t\u000b\t\f\t\u0083\u0001\t\u0001\t\u0003"+
-		"\t\u0088\b\t\u0001\t\u0001\t\u0001\t\u0004\t\u008d\b\t\u000b\t\f\t\u008e"+
-		"\u0001\t\u0001\t\u0003\t\u0093\b\t\u0001\n\u0001\n\u0001\n\u0004\n\u0098"+
-		"\b\n\u000b\n\f\n\u0099\u0001\n\u0001\n\u0001\n\u0001\n\u0001\n\u0001\n"+
-		"\u0001\n\u0001\n\u0001\n\u0001\n\u0001\n\u0001\n\u0001\n\u0001\n\u0004"+
-		"\n\u00aa\b\n\u000b\n\f\n\u00ab\u0001\n\u0001\n\u0003\n\u00b0\b\n\u0001"+
-		"\u000b\u0001\u000b\u0001\u000b\u0001\u000b\u0001\u000b\u0001\u000b\u0001"+
-		"\u000b\u0001\u000b\u0001\u000b\u0004\u000b\u00bb\b\u000b\u000b\u000b\f"+
-		"\u000b\u00bc\u0001\u000b\u0001\u000b\u0001\f\u0001\f\u0001\f\u0001\f\u0001"+
-		"\f\u0001\f\u0003\f\u00c7\b\f\u0001\r\u0001\r\u0001\r\u0001\r\u0001\r\u0001"+
-		"\r\u0005\r\u00cf\b\r\n\r\f\r\u00d2\t\r\u0001\u000e\u0001\u000e\u0001\u000e"+
-		"\u0001\u000e\u0001\u000e\u0001\u000e\u0005\u000e\u00da\b\u000e\n\u000e"+
-		"\f\u000e\u00dd\t\u000e\u0001\u000f\u0001\u000f\u0001\u000f\u0001\u000f"+
-		"\u0001\u000f\u0001\u000f\u0001\u000f\u0001\u000f\u0001\u000f\u0001\u000f"+
-		"\u0001\u000f\u0001\u000f\u0001\u000f\u0001\u000f\u0001\u000f\u0001\u000f"+
-		"\u0001\u000f\u0003\u000f\u00f0\b\u000f\u0001\u0010\u0001\u0010\u0001\u0010"+
-		"\u0001\u0010\u0001\u0010\u0001\u0010\u0005\u0010\u00f8\b\u0010\n\u0010"+
-		"\f\u0010\u00fb\t\u0010\u0001\u0011\u0001\u0011\u0001\u0011\u0001\u0011"+
-		"\u0001\u0011\u0001\u0011\u0005\u0011\u0103\b\u0011\n\u0011\f\u0011\u0106"+
-		"\t\u0011\u0001\u0012\u0001\u0012\u0001\u0012\u0001\u0012\u0001\u0012\u0001"+
+		"\u0006\u0001\u0006\u0001\u0007\u0001\u0007\u0001\u0007\u0001\u0007\u0001"+
+		"\u0007\u0001\u0007\u0001\u0007\u0001\b\u0001\b\u0001\b\u0001\b\u0001\b"+
+		"\u0001\b\u0001\b\u0001\t\u0001\t\u0001\t\u0001\t\u0001\t\u0001\t\u0001"+
+		"\t\u0001\t\u0004\tw\b\t\u000b\t\f\tx\u0001\t\u0001\t\u0001\t\u0001\t\u0001"+
+		"\t\u0001\t\u0001\t\u0001\t\u0001\t\u0001\t\u0004\t\u0085\b\t\u000b\t\f"+
+		"\t\u0086\u0001\t\u0001\t\u0001\t\u0005\t\u008c\b\t\n\t\f\t\u008f\t\t\u0001"+
+		"\t\u0001\t\u0001\t\u0001\t\u0004\t\u0095\b\t\u000b\t\f\t\u0096\u0001\t"+
+		"\u0001\t\u0001\t\u0003\t\u009c\b\t\u0001\t\u0001\t\u0001\n\u0001\n\u0001"+
+		"\n\u0001\n\u0001\n\u0001\n\u0001\n\u0004\n\u00a7\b\n\u000b\n\f\n\u00a8"+
+		"\u0001\n\u0001\n\u0001\n\u0001\n\u0001\n\u0001\n\u0001\n\u0004\n\u00b2"+
+		"\b\n\u000b\n\f\n\u00b3\u0001\n\u0001\n\u0001\n\u0001\n\u0001\n\u0001\n"+
+		"\u0001\n\u0003\n\u00bd\b\n\u0001\u000b\u0001\u000b\u0001\u000b\u0001\u000b"+
+		"\u0001\u000b\u0001\u000b\u0001\u000b\u0001\u000b\u0001\u000b\u0001\u000b"+
+		"\u0001\u000b\u0001\u000b\u0001\u000b\u0001\u000b\u0001\u000b\u0001\u000b"+
+		"\u0001\u000b\u0001\u000b\u0001\u000b\u0001\u000b\u0004\u000b\u00d3\b\u000b"+
+		"\u000b\u000b\f\u000b\u00d4\u0001\u000b\u0001\u000b\u0001\u000b\u0001\f"+
+		"\u0001\f\u0001\f\u0001\f\u0001\f\u0001\f\u0003\f\u00e0\b\f\u0001\r\u0001"+
+		"\r\u0001\r\u0001\r\u0001\r\u0001\r\u0005\r\u00e8\b\r\n\r\f\r\u00eb\t\r"+
+		"\u0001\u000e\u0001\u000e\u0001\u000e\u0001\u000e\u0001\u000e\u0001\u000e"+
+		"\u0005\u000e\u00f3\b\u000e\n\u000e\f\u000e\u00f6\t\u000e\u0001\u000f\u0001"+
+		"\u000f\u0001\u000f\u0001\u000f\u0001\u000f\u0001\u000f\u0001\u000f\u0001"+
+		"\u000f\u0001\u000f\u0001\u000f\u0001\u000f\u0001\u000f\u0001\u000f\u0001"+
+		"\u000f\u0001\u000f\u0001\u000f\u0001\u000f\u0003\u000f\u0109\b\u000f\u0001"+
+		"\u0010\u0001\u0010\u0001\u0010\u0001\u0010\u0001\u0010\u0001\u0010\u0005"+
+		"\u0010\u0111\b\u0010\n\u0010\f\u0010\u0114\t\u0010\u0001\u0011\u0001\u0011"+
+		"\u0001\u0011\u0001\u0011\u0001\u0011\u0001\u0011\u0005\u0011\u011c\b\u0011"+
+		"\n\u0011\f\u0011\u011f\t\u0011\u0001\u0012\u0001\u0012\u0001\u0012\u0001"+
 		"\u0012\u0001\u0012\u0001\u0012\u0001\u0012\u0001\u0012\u0001\u0012\u0001"+
 		"\u0012\u0001\u0012\u0001\u0012\u0001\u0012\u0001\u0012\u0001\u0012\u0001"+
-		"\u0012\u0003\u0012\u011a\b\u0012\u0001\u0013\u0001\u0013\u0001\u0013\u0001"+
-		"\u0013\u0001\u0013\u0001\u0013\u0000\u0000\u0014\u0000\u0002\u0004\u0006"+
-		"\b\n\f\u000e\u0010\u0012\u0014\u0016\u0018\u001a\u001c\u001e \"$&\u0000"+
-		"\u0002\u0001\u0000\u0010\u0011\u0001\u0000\u0012\u0013\u0130\u0000(\u0001"+
-		"\u0000\u0000\u0000\u00021\u0001\u0000\u0000\u0000\u00044\u0001\u0000\u0000"+
-		"\u0000\u0006I\u0001\u0000\u0000\u0000\bL\u0001\u0000\u0000\u0000\nV\u0001"+
-		"\u0000\u0000\u0000\fX\u0001\u0000\u0000\u0000\u000e_\u0001\u0000\u0000"+
-		"\u0000\u0010e\u0001\u0000\u0000\u0000\u0012l\u0001\u0000\u0000\u0000\u0014"+
-		"\u00af\u0001\u0000\u0000\u0000\u0016\u00b1\u0001\u0000\u0000\u0000\u0018"+
-		"\u00c6\u0001\u0000\u0000\u0000\u001a\u00c8\u0001\u0000\u0000\u0000\u001c"+
-		"\u00d3\u0001\u0000\u0000\u0000\u001e\u00ef\u0001\u0000\u0000\u0000 \u00f1"+
-		"\u0001\u0000\u0000\u0000\"\u00fc\u0001\u0000\u0000\u0000$\u0119\u0001"+
-		"\u0000\u0000\u0000&\u011b\u0001\u0000\u0000\u0000()\u0005\u0001\u0000"+
-		"\u0000)*\u0003\u0002\u0001\u0000*+\u0003\b\u0004\u0000+,\u0005\u0002\u0000"+
-		"\u0000,-\u0005\u001c\u0000\u0000-\u0001\u0001\u0000\u0000\u0000.0\u0003"+
-		"\u0004\u0002\u0000/.\u0001\u0000\u0000\u000003\u0001\u0000\u0000\u0000"+
-		"1/\u0001\u0000\u0000\u000012\u0001\u0000\u0000\u00002\u0003\u0001\u0000"+
-		"\u0000\u000031\u0001\u0000\u0000\u000045\u0003\u0006\u0003\u000056\u0005"+
-		"#\u0000\u00006<\u0006\u0002\uffff\uffff\u000078\u0005\u0017\u0000\u0000"+
-		"89\u0005#\u0000\u00009;\u0006\u0002\uffff\uffff\u0000:7\u0001\u0000\u0000"+
-		"\u0000;>\u0001\u0000\u0000\u0000<:\u0001\u0000\u0000\u0000<=\u0001\u0000"+
-		"\u0000\u0000=?\u0001\u0000\u0000\u0000><\u0001\u0000\u0000\u0000?@\u0005"+
-		"\u001c\u0000\u0000@\u0005\u0001\u0000\u0000\u0000AB\u0005\u0003\u0000"+
-		"\u0000BJ\u0006\u0003\uffff\uffff\u0000CD\u0005\u0004\u0000\u0000DJ\u0006"+
-		"\u0003\uffff\uffff\u0000EF\u0005\u0005\u0000\u0000FJ\u0006\u0003\uffff"+
-		"\uffff\u0000GH\u0005\u0006\u0000\u0000HJ\u0006\u0003\uffff\uffff\u0000"+
-		"IA\u0001\u0000\u0000\u0000IC\u0001\u0000\u0000\u0000IE\u0001\u0000\u0000"+
-		"\u0000IG\u0001\u0000\u0000\u0000J\u0007\u0001\u0000\u0000\u0000KM\u0003"+
-		"\n\u0005\u0000LK\u0001\u0000\u0000\u0000MN\u0001\u0000\u0000\u0000NL\u0001"+
-		"\u0000\u0000\u0000NO\u0001\u0000\u0000\u0000O\t\u0001\u0000\u0000\u0000"+
-		"PW\u0003\f\u0006\u0000QW\u0003\u000e\u0007\u0000RW\u0003\u0010\b\u0000"+
-		"SW\u0003\u0012\t\u0000TW\u0003\u0014\n\u0000UW\u0003\u0016\u000b\u0000"+
-		"VP\u0001\u0000\u0000\u0000VQ\u0001\u0000\u0000\u0000VR\u0001\u0000\u0000"+
-		"\u0000VS\u0001\u0000\u0000\u0000VT\u0001\u0000\u0000\u0000VU\u0001\u0000"+
-		"\u0000\u0000W\u000b\u0001\u0000\u0000\u0000XY\u0005\u0007\u0000\u0000"+
-		"YZ\u0005\u0018\u0000\u0000Z[\u0005#\u0000\u0000[\\\u0006\u0006\uffff\uffff"+
-		"\u0000\\]\u0005\u0019\u0000\u0000]^\u0005\u001c\u0000\u0000^\r\u0001\u0000"+
-		"\u0000\u0000_`\u0005\b\u0000\u0000`a\u0005\u0018\u0000\u0000ab\u0003\u0018"+
-		"\f\u0000bc\u0005\u0019\u0000\u0000cd\u0005\u001c\u0000\u0000d\u000f\u0001"+
-		"\u0000\u0000\u0000ef\u0005#\u0000\u0000fg\u0006\b\uffff\uffff\u0000gh"+
-		"\u0005\u001d\u0000\u0000hi\u0003\u0018\f\u0000ij\u0006\b\uffff\uffff\u0000"+
-		"jk\u0005\u001c\u0000\u0000k\u0011\u0001\u0000\u0000\u0000lm\u0005\t\u0000"+
-		"\u0000mn\u0005\u0018\u0000\u0000no\u0003\u0018\f\u0000op\u0006\t\uffff"+
-		"\uffff\u0000pq\u0005\u0019\u0000\u0000qr\u0005\n\u0000\u0000rt\u0005\u001a"+
-		"\u0000\u0000su\u0003\n\u0005\u0000ts\u0001\u0000\u0000\u0000uv\u0001\u0000"+
-		"\u0000\u0000vt\u0001\u0000\u0000\u0000vw\u0001\u0000\u0000\u0000wx\u0001"+
-		"\u0000\u0000\u0000x\u0087\u0005\u001b\u0000\u0000yz\u0005\u000b\u0000"+
-		"\u0000z{\u0005\u0018\u0000\u0000{|\u0003\u0018\f\u0000|}\u0006\t\uffff"+
-		"\uffff\u0000}~\u0005\u0019\u0000\u0000~\u007f\u0005\n\u0000\u0000\u007f"+
-		"\u0081\u0005\u001a\u0000\u0000\u0080\u0082\u0003\n\u0005\u0000\u0081\u0080"+
-		"\u0001\u0000\u0000\u0000\u0082\u0083\u0001\u0000\u0000\u0000\u0083\u0081"+
-		"\u0001\u0000\u0000\u0000\u0083\u0084\u0001\u0000\u0000\u0000\u0084\u0085"+
-		"\u0001\u0000\u0000\u0000\u0085\u0086\u0005\u001b\u0000\u0000\u0086\u0088"+
-		"\u0001\u0000\u0000\u0000\u0087y\u0001\u0000\u0000\u0000\u0087\u0088\u0001"+
-		"\u0000\u0000\u0000\u0088\u0092\u0001\u0000\u0000\u0000\u0089\u008a\u0005"+
-		"\f\u0000\u0000\u008a\u008c\u0005\u001a\u0000\u0000\u008b\u008d\u0003\n"+
-		"\u0005\u0000\u008c\u008b\u0001\u0000\u0000\u0000\u008d\u008e\u0001\u0000"+
-		"\u0000\u0000\u008e\u008c\u0001\u0000\u0000\u0000\u008e\u008f\u0001\u0000"+
-		"\u0000\u0000\u008f\u0090\u0001\u0000\u0000\u0000\u0090\u0091\u0005\u001b"+
-		"\u0000\u0000\u0091\u0093\u0001\u0000\u0000\u0000\u0092\u0089\u0001\u0000"+
-		"\u0000\u0000\u0092\u0093\u0001\u0000\u0000\u0000\u0093\u0013\u0001\u0000"+
-		"\u0000\u0000\u0094\u0095\u0005\r\u0000\u0000\u0095\u0097\u0005\u001a\u0000"+
-		"\u0000\u0096\u0098\u0003\n\u0005\u0000\u0097\u0096\u0001\u0000\u0000\u0000"+
-		"\u0098\u0099\u0001\u0000\u0000\u0000\u0099\u0097\u0001\u0000\u0000\u0000"+
-		"\u0099\u009a\u0001\u0000\u0000\u0000\u009a\u009b\u0001\u0000\u0000\u0000"+
-		"\u009b\u009c\u0005\u001b\u0000\u0000\u009c\u009d\u0005\u000e\u0000\u0000"+
-		"\u009d\u009e\u0005\u0018\u0000\u0000\u009e\u009f\u0003 \u0010\u0000\u009f"+
-		"\u00a0\u0006\n\uffff\uffff\u0000\u00a0\u00a1\u0005\u0019\u0000\u0000\u00a1"+
-		"\u00b0\u0001\u0000\u0000\u0000\u00a2\u00a3\u0005\u000e\u0000\u0000\u00a3"+
-		"\u00a4\u0005\u0018\u0000\u0000\u00a4\u00a5\u0003 \u0010\u0000\u00a5\u00a6"+
-		"\u0006\n\uffff\uffff\u0000\u00a6\u00a7\u0005\u0019\u0000\u0000\u00a7\u00a9"+
-		"\u0005\u001a\u0000\u0000\u00a8\u00aa\u0003\n\u0005\u0000\u00a9\u00a8\u0001"+
-		"\u0000\u0000\u0000\u00aa\u00ab\u0001\u0000\u0000\u0000\u00ab\u00a9\u0001"+
-		"\u0000\u0000\u0000\u00ab\u00ac\u0001\u0000\u0000\u0000\u00ac\u00ad\u0001"+
-		"\u0000\u0000\u0000\u00ad\u00ae\u0005\u001b\u0000\u0000\u00ae\u00b0\u0001"+
-		"\u0000\u0000\u0000\u00af\u0094\u0001\u0000\u0000\u0000\u00af\u00a2\u0001"+
-		"\u0000\u0000\u0000\u00b0\u0015\u0001\u0000\u0000\u0000\u00b1\u00b2\u0005"+
-		"\u000f\u0000\u0000\u00b2\u00b3\u0005\u0018\u0000\u0000\u00b3\u00b4\u0003"+
-		"\u0010\b\u0000\u00b4\u00b5\u0003\u0010\b\u0000\u00b5\u00b6\u0003 \u0010"+
-		"\u0000\u00b6\u00b7\u0006\u000b\uffff\uffff\u0000\u00b7\u00b8\u0005\u0019"+
-		"\u0000\u0000\u00b8\u00ba\u0005\u001a\u0000\u0000\u00b9\u00bb\u0003\n\u0005"+
-		"\u0000\u00ba\u00b9\u0001\u0000\u0000\u0000\u00bb\u00bc\u0001\u0000\u0000"+
-		"\u0000\u00bc\u00ba\u0001\u0000\u0000\u0000\u00bc\u00bd\u0001\u0000\u0000"+
-		"\u0000\u00bd\u00be\u0001\u0000\u0000\u0000\u00be\u00bf\u0005\u001b\u0000"+
-		"\u0000\u00bf\u0017\u0001\u0000\u0000\u0000\u00c0\u00c1\u0003 \u0010\u0000"+
-		"\u00c1\u00c2\u0006\f\uffff\uffff\u0000\u00c2\u00c7\u0001\u0000\u0000\u0000"+
-		"\u00c3\u00c4\u0003\u001a\r\u0000\u00c4\u00c5\u0006\f\uffff\uffff\u0000"+
-		"\u00c5\u00c7\u0001\u0000\u0000\u0000\u00c6\u00c0\u0001\u0000\u0000\u0000"+
-		"\u00c6\u00c3\u0001\u0000\u0000\u0000\u00c7\u0019\u0001\u0000\u0000\u0000"+
-		"\u00c8\u00c9\u0003\u001c\u000e\u0000\u00c9\u00d0\u0006\r\uffff\uffff\u0000"+
-		"\u00ca\u00cb\u0007\u0000\u0000\u0000\u00cb\u00cc\u0003\u001c\u000e\u0000"+
-		"\u00cc\u00cd\u0006\r\uffff\uffff\u0000\u00cd\u00cf\u0001\u0000\u0000\u0000"+
-		"\u00ce\u00ca\u0001\u0000\u0000\u0000\u00cf\u00d2\u0001\u0000\u0000\u0000"+
-		"\u00d0\u00ce\u0001\u0000\u0000\u0000\u00d0\u00d1\u0001\u0000\u0000\u0000"+
-		"\u00d1\u001b\u0001\u0000\u0000\u0000\u00d2\u00d0\u0001\u0000\u0000\u0000"+
-		"\u00d3\u00d4\u0003\u001e\u000f\u0000\u00d4\u00db\u0006\u000e\uffff\uffff"+
-		"\u0000\u00d5\u00d6\u0007\u0001\u0000\u0000\u00d6\u00d7\u0003\u001e\u000f"+
-		"\u0000\u00d7\u00d8\u0006\u000e\uffff\uffff\u0000\u00d8\u00da\u0001\u0000"+
-		"\u0000\u0000\u00d9\u00d5\u0001\u0000\u0000\u0000\u00da\u00dd\u0001\u0000"+
-		"\u0000\u0000\u00db\u00d9\u0001\u0000\u0000\u0000\u00db\u00dc\u0001\u0000"+
-		"\u0000\u0000\u00dc\u001d\u0001\u0000\u0000\u0000\u00dd\u00db\u0001\u0000"+
-		"\u0000\u0000\u00de\u00df\u0005#\u0000\u0000\u00df\u00f0\u0006\u000f\uffff"+
-		"\uffff\u0000\u00e0\u00e1\u0005%\u0000\u0000\u00e1\u00f0\u0006\u000f\uffff"+
-		"\uffff\u0000\u00e2\u00e3\u0005$\u0000\u0000\u00e3\u00f0\u0006\u000f\uffff"+
-		"\uffff\u0000\u00e4\u00e5\u0005&\u0000\u0000\u00e5\u00f0\u0006\u000f\uffff"+
-		"\uffff\u0000\u00e6\u00e7\u0005!\u0000\u0000\u00e7\u00f0\u0006\u000f\uffff"+
-		"\uffff\u0000\u00e8\u00e9\u0005\"\u0000\u0000\u00e9\u00f0\u0006\u000f\uffff"+
-		"\uffff\u0000\u00ea\u00eb\u0005\u0018\u0000\u0000\u00eb\u00ec\u0003\u0018"+
-		"\f\u0000\u00ec\u00ed\u0005\u0019\u0000\u0000\u00ed\u00ee\u0006\u000f\uffff"+
-		"\uffff\u0000\u00ee\u00f0\u0001\u0000\u0000\u0000\u00ef\u00de\u0001\u0000"+
-		"\u0000\u0000\u00ef\u00e0\u0001\u0000\u0000\u0000\u00ef\u00e2\u0001\u0000"+
-		"\u0000\u0000\u00ef\u00e4\u0001\u0000\u0000\u0000\u00ef\u00e6\u0001\u0000"+
-		"\u0000\u0000\u00ef\u00e8\u0001\u0000\u0000\u0000\u00ef\u00ea\u0001\u0000"+
-		"\u0000\u0000\u00f0\u001f\u0001\u0000\u0000\u0000\u00f1\u00f2\u0003\"\u0011"+
-		"\u0000\u00f2\u00f9\u0006\u0010\uffff\uffff\u0000\u00f3\u00f4\u0005\u0014"+
-		"\u0000\u0000\u00f4\u00f5\u0003\"\u0011\u0000\u00f5\u00f6\u0006\u0010\uffff"+
-		"\uffff\u0000\u00f6\u00f8\u0001\u0000\u0000\u0000\u00f7\u00f3\u0001\u0000"+
-		"\u0000\u0000\u00f8\u00fb\u0001\u0000\u0000\u0000\u00f9\u00f7\u0001\u0000"+
-		"\u0000\u0000\u00f9\u00fa\u0001\u0000\u0000\u0000\u00fa!\u0001\u0000\u0000"+
-		"\u0000\u00fb\u00f9\u0001\u0000\u0000\u0000\u00fc\u00fd\u0003$\u0012\u0000"+
-		"\u00fd\u0104\u0006\u0011\uffff\uffff\u0000\u00fe\u00ff\u0005\u0015\u0000"+
-		"\u0000\u00ff\u0100\u0003$\u0012\u0000\u0100\u0101\u0006\u0011\uffff\uffff"+
-		"\u0000\u0101\u0103\u0001\u0000\u0000\u0000\u0102\u00fe\u0001\u0000\u0000"+
-		"\u0000\u0103\u0106\u0001\u0000\u0000\u0000\u0104\u0102\u0001\u0000\u0000"+
-		"\u0000\u0104\u0105\u0001\u0000\u0000\u0000\u0105#\u0001\u0000\u0000\u0000"+
-		"\u0106\u0104\u0001\u0000\u0000\u0000\u0107\u0108\u0005\u0016\u0000\u0000"+
-		"\u0108\u0109\u0003$\u0012\u0000\u0109\u010a\u0006\u0012\uffff\uffff\u0000"+
-		"\u010a\u011a\u0001\u0000\u0000\u0000\u010b\u010c\u0003&\u0013\u0000\u010c"+
-		"\u010d\u0006\u0012\uffff\uffff\u0000\u010d\u011a\u0001\u0000\u0000\u0000"+
-		"\u010e\u010f\u0005#\u0000\u0000\u010f\u011a\u0006\u0012\uffff\uffff\u0000"+
-		"\u0110\u0111\u0005!\u0000\u0000\u0111\u011a\u0006\u0012\uffff\uffff\u0000"+
-		"\u0112\u0113\u0005\"\u0000\u0000\u0113\u011a\u0006\u0012\uffff\uffff\u0000"+
-		"\u0114\u0115\u0005\u0018\u0000\u0000\u0115\u0116\u0003 \u0010\u0000\u0116"+
-		"\u0117\u0005\u0019\u0000\u0000\u0117\u0118\u0006\u0012\uffff\uffff\u0000"+
-		"\u0118\u011a\u0001\u0000\u0000\u0000\u0119\u0107\u0001\u0000\u0000\u0000"+
-		"\u0119\u010b\u0001\u0000\u0000\u0000\u0119\u010e\u0001\u0000\u0000\u0000"+
-		"\u0119\u0110\u0001\u0000\u0000\u0000\u0119\u0112\u0001\u0000\u0000\u0000"+
-		"\u0119\u0114\u0001\u0000\u0000\u0000\u011a%\u0001\u0000\u0000\u0000\u011b"+
-		"\u011c\u0003\u001a\r\u0000\u011c\u011d\u0005\u001e\u0000\u0000\u011d\u011e"+
-		"\u0003\u001a\r\u0000\u011e\u011f\u0006\u0013\uffff\uffff\u0000\u011f\'"+
-		"\u0001\u0000\u0000\u0000\u00151<INVv\u0083\u0087\u008e\u0092\u0099\u00ab"+
-		"\u00af\u00bc\u00c6\u00d0\u00db\u00ef\u00f9\u0104\u0119";
+		"\u0012\u0001\u0012\u0001\u0012\u0003\u0012\u0133\b\u0012\u0001\u0013\u0001"+
+		"\u0013\u0001\u0013\u0001\u0013\u0001\u0013\u0001\u0013\u0000\u0000\u0014"+
+		"\u0000\u0002\u0004\u0006\b\n\f\u000e\u0010\u0012\u0014\u0016\u0018\u001a"+
+		"\u001c\u001e \"$&\u0000\u0002\u0001\u0000\u0010\u0011\u0001\u0000\u0012"+
+		"\u0013\u0149\u0000(\u0001\u0000\u0000\u0000\u00021\u0001\u0000\u0000\u0000"+
+		"\u00044\u0001\u0000\u0000\u0000\u0006I\u0001\u0000\u0000\u0000\bL\u0001"+
+		"\u0000\u0000\u0000\nV\u0001\u0000\u0000\u0000\fX\u0001\u0000\u0000\u0000"+
+		"\u000e`\u0001\u0000\u0000\u0000\u0010g\u0001\u0000\u0000\u0000\u0012n"+
+		"\u0001\u0000\u0000\u0000\u0014\u00bc\u0001\u0000\u0000\u0000\u0016\u00be"+
+		"\u0001\u0000\u0000\u0000\u0018\u00df\u0001\u0000\u0000\u0000\u001a\u00e1"+
+		"\u0001\u0000\u0000\u0000\u001c\u00ec\u0001\u0000\u0000\u0000\u001e\u0108"+
+		"\u0001\u0000\u0000\u0000 \u010a\u0001\u0000\u0000\u0000\"\u0115\u0001"+
+		"\u0000\u0000\u0000$\u0132\u0001\u0000\u0000\u0000&\u0134\u0001\u0000\u0000"+
+		"\u0000()\u0005\u0001\u0000\u0000)*\u0003\u0002\u0001\u0000*+\u0003\b\u0004"+
+		"\u0000+,\u0005\u0002\u0000\u0000,-\u0006\u0000\uffff\uffff\u0000-\u0001"+
+		"\u0001\u0000\u0000\u0000.0\u0003\u0004\u0002\u0000/.\u0001\u0000\u0000"+
+		"\u000003\u0001\u0000\u0000\u00001/\u0001\u0000\u0000\u000012\u0001\u0000"+
+		"\u0000\u00002\u0003\u0001\u0000\u0000\u000031\u0001\u0000\u0000\u0000"+
+		"45\u0003\u0006\u0003\u000056\u0005#\u0000\u00006<\u0006\u0002\uffff\uffff"+
+		"\u000078\u0005\u0017\u0000\u000089\u0005#\u0000\u00009;\u0006\u0002\uffff"+
+		"\uffff\u0000:7\u0001\u0000\u0000\u0000;>\u0001\u0000\u0000\u0000<:\u0001"+
+		"\u0000\u0000\u0000<=\u0001\u0000\u0000\u0000=?\u0001\u0000\u0000\u0000"+
+		"><\u0001\u0000\u0000\u0000?@\u0005\u001c\u0000\u0000@\u0005\u0001\u0000"+
+		"\u0000\u0000AB\u0005\u0003\u0000\u0000BJ\u0006\u0003\uffff\uffff\u0000"+
+		"CD\u0005\u0004\u0000\u0000DJ\u0006\u0003\uffff\uffff\u0000EF\u0005\u0005"+
+		"\u0000\u0000FJ\u0006\u0003\uffff\uffff\u0000GH\u0005\u0006\u0000\u0000"+
+		"HJ\u0006\u0003\uffff\uffff\u0000IA\u0001\u0000\u0000\u0000IC\u0001\u0000"+
+		"\u0000\u0000IE\u0001\u0000\u0000\u0000IG\u0001\u0000\u0000\u0000J\u0007"+
+		"\u0001\u0000\u0000\u0000KM\u0003\n\u0005\u0000LK\u0001\u0000\u0000\u0000"+
+		"MN\u0001\u0000\u0000\u0000NL\u0001\u0000\u0000\u0000NO\u0001\u0000\u0000"+
+		"\u0000O\t\u0001\u0000\u0000\u0000PW\u0003\f\u0006\u0000QW\u0003\u000e"+
+		"\u0007\u0000RW\u0003\u0010\b\u0000SW\u0003\u0012\t\u0000TW\u0003\u0014"+
+		"\n\u0000UW\u0003\u0016\u000b\u0000VP\u0001\u0000\u0000\u0000VQ\u0001\u0000"+
+		"\u0000\u0000VR\u0001\u0000\u0000\u0000VS\u0001\u0000\u0000\u0000VT\u0001"+
+		"\u0000\u0000\u0000VU\u0001\u0000\u0000\u0000W\u000b\u0001\u0000\u0000"+
+		"\u0000XY\u0005\u0007\u0000\u0000YZ\u0005\u0018\u0000\u0000Z[\u0005#\u0000"+
+		"\u0000[\\\u0006\u0006\uffff\uffff\u0000\\]\u0005\u0019\u0000\u0000]^\u0005"+
+		"\u001c\u0000\u0000^_\u0006\u0006\uffff\uffff\u0000_\r\u0001\u0000\u0000"+
+		"\u0000`a\u0005\b\u0000\u0000ab\u0005\u0018\u0000\u0000bc\u0003\u0018\f"+
+		"\u0000cd\u0005\u0019\u0000\u0000de\u0005\u001c\u0000\u0000ef\u0006\u0007"+
+		"\uffff\uffff\u0000f\u000f\u0001\u0000\u0000\u0000gh\u0005#\u0000\u0000"+
+		"hi\u0006\b\uffff\uffff\u0000ij\u0005\u001d\u0000\u0000jk\u0003\u0018\f"+
+		"\u0000kl\u0006\b\uffff\uffff\u0000lm\u0005\u001c\u0000\u0000m\u0011\u0001"+
+		"\u0000\u0000\u0000no\u0005\t\u0000\u0000op\u0005\u0018\u0000\u0000pq\u0003"+
+		" \u0010\u0000qr\u0005\u0019\u0000\u0000rs\u0005\n\u0000\u0000st\u0005"+
+		"\u001a\u0000\u0000tv\u0006\t\uffff\uffff\u0000uw\u0003\n\u0005\u0000v"+
+		"u\u0001\u0000\u0000\u0000wx\u0001\u0000\u0000\u0000xv\u0001\u0000\u0000"+
+		"\u0000xy\u0001\u0000\u0000\u0000yz\u0001\u0000\u0000\u0000z{\u0005\u001b"+
+		"\u0000\u0000{\u008d\u0006\t\uffff\uffff\u0000|}\u0005\u000b\u0000\u0000"+
+		"}~\u0005\u0018\u0000\u0000~\u007f\u0003 \u0010\u0000\u007f\u0080\u0005"+
+		"\u0019\u0000\u0000\u0080\u0081\u0005\n\u0000\u0000\u0081\u0082\u0005\u001a"+
+		"\u0000\u0000\u0082\u0084\u0006\t\uffff\uffff\u0000\u0083\u0085\u0003\n"+
+		"\u0005\u0000\u0084\u0083\u0001\u0000\u0000\u0000\u0085\u0086\u0001\u0000"+
+		"\u0000\u0000\u0086\u0084\u0001\u0000\u0000\u0000\u0086\u0087\u0001\u0000"+
+		"\u0000\u0000\u0087\u0088\u0001\u0000\u0000\u0000\u0088\u0089\u0005\u001b"+
+		"\u0000\u0000\u0089\u008a\u0006\t\uffff\uffff\u0000\u008a\u008c\u0001\u0000"+
+		"\u0000\u0000\u008b|\u0001\u0000\u0000\u0000\u008c\u008f\u0001\u0000\u0000"+
+		"\u0000\u008d\u008b\u0001\u0000\u0000\u0000\u008d\u008e\u0001\u0000\u0000"+
+		"\u0000\u008e\u009b\u0001\u0000\u0000\u0000\u008f\u008d\u0001\u0000\u0000"+
+		"\u0000\u0090\u0091\u0005\f\u0000\u0000\u0091\u0092\u0005\u001a\u0000\u0000"+
+		"\u0092\u0094\u0006\t\uffff\uffff\u0000\u0093\u0095\u0003\n\u0005\u0000"+
+		"\u0094\u0093\u0001\u0000\u0000\u0000\u0095\u0096\u0001\u0000\u0000\u0000"+
+		"\u0096\u0094\u0001\u0000\u0000\u0000\u0096\u0097\u0001\u0000\u0000\u0000"+
+		"\u0097\u0098\u0001\u0000\u0000\u0000\u0098\u0099\u0005\u001b\u0000\u0000"+
+		"\u0099\u009a\u0006\t\uffff\uffff\u0000\u009a\u009c\u0001\u0000\u0000\u0000"+
+		"\u009b\u0090\u0001\u0000\u0000\u0000\u009b\u009c\u0001\u0000\u0000\u0000"+
+		"\u009c\u009d\u0001\u0000\u0000\u0000\u009d\u009e\u0006\t\uffff\uffff\u0000"+
+		"\u009e\u0013\u0001\u0000\u0000\u0000\u009f\u00a0\u0005\r\u0000\u0000\u00a0"+
+		"\u00a1\u0005\u0018\u0000\u0000\u00a1\u00a2\u0003 \u0010\u0000\u00a2\u00a3"+
+		"\u0005\u0019\u0000\u0000\u00a3\u00a4\u0005\u001a\u0000\u0000\u00a4\u00a6"+
+		"\u0006\n\uffff\uffff\u0000\u00a5\u00a7\u0003\n\u0005\u0000\u00a6\u00a5"+
+		"\u0001\u0000\u0000\u0000\u00a7\u00a8\u0001\u0000\u0000\u0000\u00a8\u00a6"+
+		"\u0001\u0000\u0000\u0000\u00a8\u00a9\u0001\u0000\u0000\u0000\u00a9\u00aa"+
+		"\u0001\u0000\u0000\u0000\u00aa\u00ab\u0005\u001b\u0000\u0000\u00ab\u00ac"+
+		"\u0006\n\uffff\uffff\u0000\u00ac\u00bd\u0001\u0000\u0000\u0000\u00ad\u00ae"+
+		"\u0005\u000e\u0000\u0000\u00ae\u00af\u0005\u001a\u0000\u0000\u00af\u00b1"+
+		"\u0006\n\uffff\uffff\u0000\u00b0\u00b2\u0003\n\u0005\u0000\u00b1\u00b0"+
+		"\u0001\u0000\u0000\u0000\u00b2\u00b3\u0001\u0000\u0000\u0000\u00b3\u00b1"+
+		"\u0001\u0000\u0000\u0000\u00b3\u00b4\u0001\u0000\u0000\u0000\u00b4\u00b5"+
+		"\u0001\u0000\u0000\u0000\u00b5\u00b6\u0005\u001b\u0000\u0000\u00b6\u00b7"+
+		"\u0005\r\u0000\u0000\u00b7\u00b8\u0005\u0018\u0000\u0000\u00b8\u00b9\u0003"+
+		" \u0010\u0000\u00b9\u00ba\u0005\u0019\u0000\u0000\u00ba\u00bb\u0006\n"+
+		"\uffff\uffff\u0000\u00bb\u00bd\u0001\u0000\u0000\u0000\u00bc\u009f\u0001"+
+		"\u0000\u0000\u0000\u00bc\u00ad\u0001\u0000\u0000\u0000\u00bd\u0015\u0001"+
+		"\u0000\u0000\u0000\u00be\u00bf\u0005\u000f\u0000\u0000\u00bf\u00c0\u0005"+
+		"\u0018\u0000\u0000\u00c0\u00c1\u0005#\u0000\u0000\u00c1\u00c2\u0006\u000b"+
+		"\uffff\uffff\u0000\u00c2\u00c3\u0005\u001d\u0000\u0000\u00c3\u00c4\u0003"+
+		"\u0018\f\u0000\u00c4\u00c5\u0005\u001c\u0000\u0000\u00c5\u00c6\u0006\u000b"+
+		"\uffff\uffff\u0000\u00c6\u00c7\u0005#\u0000\u0000\u00c7\u00c8\u0006\u000b"+
+		"\uffff\uffff\u0000\u00c8\u00c9\u0005\u001d\u0000\u0000\u00c9\u00ca\u0003"+
+		"\u0018\f\u0000\u00ca\u00cb\u0005\u001c\u0000\u0000\u00cb\u00cc\u0006\u000b"+
+		"\uffff\uffff\u0000\u00cc\u00cd\u0003 \u0010\u0000\u00cd\u00ce\u0006\u000b"+
+		"\uffff\uffff\u0000\u00ce\u00cf\u0005\u0019\u0000\u0000\u00cf\u00d0\u0005"+
+		"\u001a\u0000\u0000\u00d0\u00d2\u0006\u000b\uffff\uffff\u0000\u00d1\u00d3"+
+		"\u0003\n\u0005\u0000\u00d2\u00d1\u0001\u0000\u0000\u0000\u00d3\u00d4\u0001"+
+		"\u0000\u0000\u0000\u00d4\u00d2\u0001\u0000\u0000\u0000\u00d4\u00d5\u0001"+
+		"\u0000\u0000\u0000\u00d5\u00d6\u0001\u0000\u0000\u0000\u00d6\u00d7\u0005"+
+		"\u001b\u0000\u0000\u00d7\u00d8\u0006\u000b\uffff\uffff\u0000\u00d8\u0017"+
+		"\u0001\u0000\u0000\u0000\u00d9\u00da\u0003 \u0010\u0000\u00da\u00db\u0006"+
+		"\f\uffff\uffff\u0000\u00db\u00e0\u0001\u0000\u0000\u0000\u00dc\u00dd\u0003"+
+		"\u001a\r\u0000\u00dd\u00de\u0006\f\uffff\uffff\u0000\u00de\u00e0\u0001"+
+		"\u0000\u0000\u0000\u00df\u00d9\u0001\u0000\u0000\u0000\u00df\u00dc\u0001"+
+		"\u0000\u0000\u0000\u00e0\u0019\u0001\u0000\u0000\u0000\u00e1\u00e2\u0003"+
+		"\u001c\u000e\u0000\u00e2\u00e9\u0006\r\uffff\uffff\u0000\u00e3\u00e4\u0007"+
+		"\u0000\u0000\u0000\u00e4\u00e5\u0003\u001c\u000e\u0000\u00e5\u00e6\u0006"+
+		"\r\uffff\uffff\u0000\u00e6\u00e8\u0001\u0000\u0000\u0000\u00e7\u00e3\u0001"+
+		"\u0000\u0000\u0000\u00e8\u00eb\u0001\u0000\u0000\u0000\u00e9\u00e7\u0001"+
+		"\u0000\u0000\u0000\u00e9\u00ea\u0001\u0000\u0000\u0000\u00ea\u001b\u0001"+
+		"\u0000\u0000\u0000\u00eb\u00e9\u0001\u0000\u0000\u0000\u00ec\u00ed\u0003"+
+		"\u001e\u000f\u0000\u00ed\u00f4\u0006\u000e\uffff\uffff\u0000\u00ee\u00ef"+
+		"\u0007\u0001\u0000\u0000\u00ef\u00f0\u0003\u001e\u000f\u0000\u00f0\u00f1"+
+		"\u0006\u000e\uffff\uffff\u0000\u00f1\u00f3\u0001\u0000\u0000\u0000\u00f2"+
+		"\u00ee\u0001\u0000\u0000\u0000\u00f3\u00f6\u0001\u0000\u0000\u0000\u00f4"+
+		"\u00f2\u0001\u0000\u0000\u0000\u00f4\u00f5\u0001\u0000\u0000\u0000\u00f5"+
+		"\u001d\u0001\u0000\u0000\u0000\u00f6\u00f4\u0001\u0000\u0000\u0000\u00f7"+
+		"\u00f8\u0005#\u0000\u0000\u00f8\u0109\u0006\u000f\uffff\uffff\u0000\u00f9"+
+		"\u00fa\u0005%\u0000\u0000\u00fa\u0109\u0006\u000f\uffff\uffff\u0000\u00fb"+
+		"\u00fc\u0005$\u0000\u0000\u00fc\u0109\u0006\u000f\uffff\uffff\u0000\u00fd"+
+		"\u00fe\u0005&\u0000\u0000\u00fe\u0109\u0006\u000f\uffff\uffff\u0000\u00ff"+
+		"\u0100\u0005!\u0000\u0000\u0100\u0109\u0006\u000f\uffff\uffff\u0000\u0101"+
+		"\u0102\u0005\"\u0000\u0000\u0102\u0109\u0006\u000f\uffff\uffff\u0000\u0103"+
+		"\u0104\u0005\u0018\u0000\u0000\u0104\u0105\u0003\u0018\f\u0000\u0105\u0106"+
+		"\u0005\u0019\u0000\u0000\u0106\u0107\u0006\u000f\uffff\uffff\u0000\u0107"+
+		"\u0109\u0001\u0000\u0000\u0000\u0108\u00f7\u0001\u0000\u0000\u0000\u0108"+
+		"\u00f9\u0001\u0000\u0000\u0000\u0108\u00fb\u0001\u0000\u0000\u0000\u0108"+
+		"\u00fd\u0001\u0000\u0000\u0000\u0108\u00ff\u0001\u0000\u0000\u0000\u0108"+
+		"\u0101\u0001\u0000\u0000\u0000\u0108\u0103\u0001\u0000\u0000\u0000\u0109"+
+		"\u001f\u0001\u0000\u0000\u0000\u010a\u010b\u0003\"\u0011\u0000\u010b\u0112"+
+		"\u0006\u0010\uffff\uffff\u0000\u010c\u010d\u0005\u0014\u0000\u0000\u010d"+
+		"\u010e\u0003\"\u0011\u0000\u010e\u010f\u0006\u0010\uffff\uffff\u0000\u010f"+
+		"\u0111\u0001\u0000\u0000\u0000\u0110\u010c\u0001\u0000\u0000\u0000\u0111"+
+		"\u0114\u0001\u0000\u0000\u0000\u0112\u0110\u0001\u0000\u0000\u0000\u0112"+
+		"\u0113\u0001\u0000\u0000\u0000\u0113!\u0001\u0000\u0000\u0000\u0114\u0112"+
+		"\u0001\u0000\u0000\u0000\u0115\u0116\u0003$\u0012\u0000\u0116\u011d\u0006"+
+		"\u0011\uffff\uffff\u0000\u0117\u0118\u0005\u0015\u0000\u0000\u0118\u0119"+
+		"\u0003$\u0012\u0000\u0119\u011a\u0006\u0011\uffff\uffff\u0000\u011a\u011c"+
+		"\u0001\u0000\u0000\u0000\u011b\u0117\u0001\u0000\u0000\u0000\u011c\u011f"+
+		"\u0001\u0000\u0000\u0000\u011d\u011b\u0001\u0000\u0000\u0000\u011d\u011e"+
+		"\u0001\u0000\u0000\u0000\u011e#\u0001\u0000\u0000\u0000\u011f\u011d\u0001"+
+		"\u0000\u0000\u0000\u0120\u0121\u0005\u0016\u0000\u0000\u0121\u0122\u0003"+
+		"$\u0012\u0000\u0122\u0123\u0006\u0012\uffff\uffff\u0000\u0123\u0133\u0001"+
+		"\u0000\u0000\u0000\u0124\u0125\u0003&\u0013\u0000\u0125\u0126\u0006\u0012"+
+		"\uffff\uffff\u0000\u0126\u0133\u0001\u0000\u0000\u0000\u0127\u0128\u0005"+
+		"#\u0000\u0000\u0128\u0133\u0006\u0012\uffff\uffff\u0000\u0129\u012a\u0005"+
+		"!\u0000\u0000\u012a\u0133\u0006\u0012\uffff\uffff\u0000\u012b\u012c\u0005"+
+		"\"\u0000\u0000\u012c\u0133\u0006\u0012\uffff\uffff\u0000\u012d\u012e\u0005"+
+		"\u0018\u0000\u0000\u012e\u012f\u0003 \u0010\u0000\u012f\u0130\u0005\u0019"+
+		"\u0000\u0000\u0130\u0131\u0006\u0012\uffff\uffff\u0000\u0131\u0133\u0001"+
+		"\u0000\u0000\u0000\u0132\u0120\u0001\u0000\u0000\u0000\u0132\u0124\u0001"+
+		"\u0000\u0000\u0000\u0132\u0127\u0001\u0000\u0000\u0000\u0132\u0129\u0001"+
+		"\u0000\u0000\u0000\u0132\u012b\u0001\u0000\u0000\u0000\u0132\u012d\u0001"+
+		"\u0000\u0000\u0000\u0133%\u0001\u0000\u0000\u0000\u0134\u0135\u0003\u001a"+
+		"\r\u0000\u0135\u0136\u0005\u001e\u0000\u0000\u0136\u0137\u0003\u001a\r"+
+		"\u0000\u0137\u0138\u0006\u0013\uffff\uffff\u0000\u0138\'\u0001\u0000\u0000"+
+		"\u0000\u00151<INVx\u0086\u008d\u0096\u009b\u00a8\u00b3\u00bc\u00d4\u00df"+
+		"\u00e9\u00f4\u0108\u0112\u011d\u0132";
 	public static final ATN _ATN =
 		new ATNDeserializer().deserialize(_serializedATN.toCharArray());
 	static {
