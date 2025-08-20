@@ -13,7 +13,7 @@ iniciavis
 
     // Atribuição com expressão aritmética
     ano = idade + 10;
-    peso = altura * 2.5;
+    peso = altura * 2.5f;
 
     // Atribuição de texto
     saudacao = "Olá, ";
@@ -45,7 +45,7 @@ iniciavis
     escrevis(maioridade);
 
     // Expressão com parênteses e mistura de tipos
-    peso = (idade + 2) * 1.1;
+    peso = (idade + 2) * 1.1f;
 
     // Escrita de resultado final
     escrevis("Peso ajustado: ");
@@ -60,7 +60,7 @@ iniciavis
     // Loop do-while (fazis ... enquanto)
     fazis {
         escrevis("Executando pelo menos uma vez");
-        peso = peso + 0.5;
+        peso = peso + 0.5f;
     } enquantis (peso < 70)
 
     // Comando de seleção

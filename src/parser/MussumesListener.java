@@ -8,12 +8,15 @@ package parser;
     import ast.Program;
     import ast.AbstractCommand;
     import java.util.ArrayList;
+    import java.util.Stack;
     import ast.CommandLeitura;
     import ast.CommandEscrita;
     import ast.CommandBloco;
     import ast.CommandDecisao;
     import ast.CommandEnquanto;
     import ast.CommandAtribuicao;
+    import org.antlr.v4.runtime.ParserRuleContext;
+    import org.antlr.v4.runtime.misc.Interval;
 
 import org.antlr.v4.runtime.tree.ParseTreeListener;
 
