@@ -53,6 +53,8 @@ public class MainClass {
                 System.out.println("Arquivus " + fileName + " processadis com sucessis!");
                 System.out.println("Todo mundo vê os porris que eu tomo, mas ninguém vê os tombis que eu levo!");
                 System.out.println("Mais vale um bebadis conhecidiss, que um alcoolatra anonimis.");
+                
+                parser.generateCode();
                 System.out.println("__________________________________________________________________________________");
                 System.out.println("Arquivus " + fileName + " compiladis com sucessis!");
                 System.out.println("Podis testavis, cumpadi!");
