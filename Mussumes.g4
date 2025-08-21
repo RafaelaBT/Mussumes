@@ -111,13 +111,11 @@ grammar Mussumes;
     }
 
     private String textOf(org.antlr.v4.runtime.ParserRuleContext ctx){
-        // robusto mesmo com comentários/canais ocultos
         return _input.getText(ctx.getSourceInterval());
     }
 
     private String normalizeExpr(String s){
         if (s == null) return null;
-        // booleans Mussumês -> Java
         s = s.replaceAll("\\bverdaderis\\b", "true");
         s = s.replaceAll("\\bfalsis\\b", "false");
         return s;
@@ -125,7 +123,6 @@ grammar Mussumes;
 
     private String addFloatSuffixIfNeeded(String s){
         if (s == null) return null;
-        // simples e suficiente p/ nossa léxica: FLOAT é \d+\.\d+ (sem expoente)
         return s.replaceAll("(\\d+\\.\\d+)(?![fF])", "$1f");
     }
 }
